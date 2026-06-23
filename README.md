@@ -1,4 +1,4 @@
-# Exus Firmware — Guia de Início
+# Eksus Firmware — Guia de Início
 
 Firmware para **ESP32-C3 + DRV2605 + motor LRA** que cria sensações hápticas
 controlando o ritmo de pulsos de vibração pela porta USB Serial.
