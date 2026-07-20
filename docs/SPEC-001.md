@@ -1,4 +1,4 @@
-# PLAN.md — Código para ESP32 (Projeto Exus)
+# SPEC-001 — Firmware háptico para ESP32 (Projeto Exus)
 
 > **Objetivo deste documento:** guiar, passo a passo, a criação do código (firmware) para o microcontrolador **ESP32-C3** que controla **um** driver háptico **DRV2605** ligado a **um** motor **LRA do tipo moeda**, fazendo-o vibrar com uma **frequência percebida** definida (ritmo de pulsos).
 >
@@ -223,6 +223,8 @@ O código está pronto para esta fase quando:
 ## 12. Evolução do projeto (próximos passos — fora do MVP)
 
 > Registrado a pedido do time: o MVP é simples de propósito, mas o caminho de crescimento já fica documentado aqui.
+>
+> A implementação detalhada de multiplexadores e zonas foi separada na [SPEC-002](SPEC-002.md). A Exus Bridge e a integração com jogos estão na [SPEC-003](SPEC-003.md). As duas evoluções são independentes e podem ser desenvolvidas em qualquer ordem.
 
 1. **Adicionar o multiplexador TCA9548A.**
    - Por quê: vários DRV2605 têm o **mesmo endereço** (`0x5A`) e brigariam no mesmo barramento. O TCA9548A coloca cada driver num **canal** separado.
@@ -238,9 +240,9 @@ O código está pronto para esta fase quando:
    - Permitir disparos **simultâneos/sequenciados** entre zonas com baixa latência (filas de comandos + temporizadores, sem `delay()`).
    - Suportar **perfis por usuário** e a **tabela háptica** (evento → zona, padrão, duração, intensidade) salva em JSON/CSV/struct.
 
-4. **Comunicação externa:** USB Serial → depois **BLE** (wearable) e **Wi-Fi/UDP** (integração com engine). Protocolo com **ACK**, validação de limites e *rate limit*.
+4. **Comunicação externa:** USB Serial e UDP/integração jogável são detalhados na SPEC-003. **BLE** fica reservado para uma SPEC-004 futura. O protocolo deve manter **ACK**, validação de limites e *rate limit*.
 
-5. **Integração com jogo:** Unity/Unreal/Godot enviando eventos; antes disso, um **simulador** (script Python/Node) para testar sem o jogo real.
+5. **Integração com jogo:** Godot + Exus Bridge em Python são as escolhas confirmadas para o MVP da SPEC-003; antes do jogo, um simulador testa a cadeia sem depender da engine.
 
 6. **Hardware usável:** sair da protoboard para **placa soldada/PCB**, conectores travados, fixação mecânica que transmita a vibração sem peças soltas, fonte dimensionada para vários motores com GND comum.
 
@@ -255,6 +257,8 @@ O código está pronto para esta fase quando:
 - Adafruit TCA9548A — multiplexador I2C: https://learn.adafruit.com/adafruit-tca9548a-1-to-8-i2c-multiplexer-breakout/arduino-wiring-and-test
 - espp — DRV2605 (referência ESP-IDF/C++, enviada pelo time): https://esp-cpp.github.io/espp/haptics/drv2605.html
 - Documentação interna: *Projeto Exus — A Frequência da Imersão* (PDF do projeto).
+- [SPEC-002 — evolução do firmware para múltiplas zonas](SPEC-002.md)
+- [SPEC-003 — Exus Bridge e demo jogável](SPEC-003.md)
 
 ---
 

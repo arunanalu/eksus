@@ -3,7 +3,11 @@
 Firmware para **ESP32-C3 + DRV2605 + motor LRA** que cria sensações hápticas
 controlando o ritmo de pulsos de vibração pela porta USB Serial
 
-> Para entender *por que* as decisões foram tomadas desta forma, leia [`docs/PLAN.md`](docs/PLAN.md).
+> Para entender *por que* as decisões foram tomadas desta forma, leia a
+> [`SPEC-001`](docs/SPEC-001.md). A evolução do firmware para múltiplas zonas
+> está na [`SPEC-002`](docs/SPEC-002.md), e a Exus Bridge e a integração com
+> jogos por USB estão na [`SPEC-003`](docs/SPEC-003.md). Bluetooth foi reservado
+> para uma SPEC-004 futura.
 
 ---
 
@@ -382,5 +386,9 @@ firmware/
 └── Comandos.h/.cpp     ← interface USB Serial
 ```
 
-Para entender a lógica completa e os próximos passos de evolução
-(multiplexador, múltiplos motores, BLE), leia [`docs/PLAN.md`](docs/PLAN.md).
+Para entender a lógica completa e os próximos passos de evolução, consulte:
+
+- [`docs/SPEC-001.md`](docs/SPEC-001.md) — firmware, hardware e segurança do MVP;
+- [`docs/SPEC-002.md`](docs/SPEC-002.md) — evolução independente do firmware para multiplexadores e múltiplas zonas;
+- [`docs/SPEC-003.md`](docs/SPEC-003.md) — Exus Bridge, integração com jogos e demo jogável.
+- `docs/SPEC-004.md` (futura) — transporte Bluetooth/BLE e operação sem cabo de dados.
