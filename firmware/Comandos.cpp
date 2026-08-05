@@ -1,234 +1,232 @@
 #include "Comandos.h"
 #include "Config.h"
-#include "GeradorEnvelope.h"
+#include "MultiZoneScheduler.h"
 #include "Seguranca.h"
-#include "DriverHaptico.h"
+#include "ZoneDriver.h"
+#include "ZoneMap.h"
 #include <Arduino.h>
+#include <stdlib.h>
 
-// --------------------------------------------------------
-// Funções auxiliares de resposta
-// --------------------------------------------------------
-
-static void _ajuda() {
-  Serial.println(F("\n=== Comandos disponíveis ==="));
-  Serial.println(F("  v <freq> <intens%> [ms]   vibrar (frequência percebida via pulsos)"));
-  Serial.println(F("                            ex: v 30 40 2000  (30 Hz, 40%, 2 s)"));
-  Serial.println(F("                            ex: v 10 25       (10 Hz, 25%, contínuo)"));
-  Serial.println(F("  s                         parar vibração atual"));
-  Serial.println(F("  e                         PARADA DE EMERGÊNCIA (bloqueia tudo)"));
-  Serial.println(F("  r                         retomar após emergência"));
-  Serial.println(F("  ef <1-123>                tocar efeito built-in do DRV2605 (LRA)"));
-  Serial.println(F("  status                    exibir estado atual"));
-  Serial.println(F("  scan                      verificar DRV2605 no barramento I2C"));
-  Serial.println(F("  h  ou  ?                  esta ajuda"));
-  Serial.println(F("============================\n"));
+static void help() {
+  Serial.println(F("\n=== Exus multi-zona ==="));
+  Serial.println(F("zones | scan all                 mapa e descoberta do hardware"));
+  Serial.println(F("pulse <zone> <intens%> <ms> [Hz] envelope RTP por zona"));
+  Serial.println(F("effect <zone> <1-123>            efeito ROM por zona"));
+  Serial.println(F("mux <1-8> pulse <intens%> <ms> [Hz]"));
+  Serial.println(F("mux <1-8> effect <1-123>         aciona zonas prontas do mux"));
+  Serial.println(F("group <mask> pulse <intens%> <ms> [Hz]"));
+  Serial.println(F("group <mask> effect <1-123>       mascara de 64 bits (ex.: 0x03)"));
+  Serial.println(F("stop <zone|mux:N|all> | status [zone] | Q [seq]"));
+  Serial.println(F("emergency | resume"));
+  Serial.println(F("Legado: v <Hz> <intens%> [ms], ef <1-123>, s, e, r, h"));
 }
 
-static void _status() {
-  Serial.println(F("\n--- Status ---"));
-  Serial.printf("  Emergencia : %s\n",
-                seguranca_emergencia_ativa() ? "ATIVA" : "OK");
-  Serial.printf("  Envelope   : %s\n",
-                envelope_ativo() ? "VIBRANDO" : "parado");
-  Serial.printf("  Max intens.: %d%%\n", MAX_INTENSITY_PCT);
-  Serial.printf("  Max duracao: %d ms\n", MAX_DURATION_MS);
-  Serial.printf("  Cooldown   : %d ms\n", MIN_COOLDOWN_MS);
-  Serial.println(F("--------------\n"));
+static void capabilities(unsigned long seq) {
+  Serial.printf("A %lu CAP {\"protocol\":1,\"zones_configured\":%u,\"zones_ready\":[",
+    seq, zone_map_count());
+  bool first = true;
+  for (uint8_t id = 0; id < zone_map_count(); ++id) {
+    if (!zone_driver_ready(id)) continue;
+    if (!first) Serial.print(',');
+    Serial.print(id);
+    first = false;
+  }
+  Serial.printf("],\"max_group_size\":%u,\"features\":[\"rom\",\"rtp\",\"per_zone_limits\",\"dynamic_mux_discovery\"]}\n",
+    MAX_SIMULTANEOUS_ZONES);
 }
 
-// --------------------------------------------------------
-// Handlers dos comandos
-// --------------------------------------------------------
-
-static void _cmd_vibrar(const char* args) {
-  float         freq_hz   = DEFAULT_FREQ_HZ;
-  int           intensity = DEFAULT_INTENSITY_PCT;
-  unsigned long dur_ul    = 0;  // 0 = contínuo
-
-  int n = sscanf(args, "%f %d %lu", &freq_hz, &intensity, &dur_ul);
-  if (n < 2) {
-    Serial.println(F("[ERRO] Uso: v <freq_hz> <intensidade%> [duracao_ms]"));
-    Serial.println(F("       Exemplo: v 30 40 2000"));
-    return;
-  }
-
-  if (!seguranca_cooldown_ok()) {
-    Serial.printf("[AVISO] Cooldown ativo: aguarde %d ms entre ativacoes.\n",
-                  MIN_COOLDOWN_MS);
-    return;
-  }
-
-  ParametrosValidados p = seguranca_validar(freq_hz, intensity,
-                                            (uint32_t)dur_ul, DEFAULT_DUTY_CYCLE);
-  if (!p.valido) {
-    Serial.println(F("[ERRO] Parametros invalidos."));
-    return;
-  }
-
-  if (envelope_ativo()) {
-    envelope_parar();
-  }
-
-  ParametrosEnvelope ep;
-  ep.freq_hz    = p.freq_hz;
-  ep.amplitude  = p.amplitude;
-  ep.duracao_ms = p.duracao_ms;
-  ep.duty_cycle = p.duty_cycle;
-  envelope_iniciar(ep);
-
-  if (p.duracao_ms == 0) {
-    Serial.printf("[OK] Vibrando %.1f Hz | amplitude %d/127 | continuo\n",
-                  p.freq_hz, p.amplitude);
-  } else {
-    Serial.printf("[OK] Vibrando %.1f Hz | amplitude %d/127 | %lu ms\n",
-                  p.freq_hz, p.amplitude, (unsigned long)p.duracao_ms);
-  }
-}
-
-static void _cmd_efeito(const char* args) {
-  int effect = atoi(args);
-  if (effect < 1 || effect > 123) {
-    Serial.println(F("[ERRO] Efeito deve ser um numero entre 1 e 123."));
-    return;
-  }
-
-  if (envelope_ativo()) {
-    envelope_parar();
-  }
-
-  drv.selectLibrary(6);               // biblioteca LRA
-  drv.setMode(DRV2605_MODE_INTTRIG);
-  drv.setWaveform(0, (uint8_t)effect);
-  drv.setWaveform(1, 0);              // fim da sequência de efeitos
-  drv.go();
-
-  Serial.printf("[OK] Efeito %d acionado. Use 's' para parar antes de terminar.\n",
-                effect);
-}
-
-// --------------------------------------------------------
-// Despachante central — baseado em tokens para evitar
-// conflitos de prefixo (ex: "e" vs "ef").
-// --------------------------------------------------------
-
-static void _executar(const char* linha) {
-  // Descarta espaços iniciais
-  while (*linha == ' ') linha++;
-  if (*linha == '\0') return;
-
-  // Extrai o primeiro token (comando) em minúsculas
-  char    cmd[16];
-  uint8_t ci    = 0;
-  const char* p = linha;
-  while (*p && *p != ' ' && ci < 15) {
-    cmd[ci++] = (char)tolower((unsigned char)*p++);
-  }
-  cmd[ci] = '\0';
-
-  // Avança para os argumentos
-  while (*p == ' ') p++;
-  const char* args = p;
-
-  // --------------------------------------------------
-  // Comandos de emergência: sempre processados
-  // --------------------------------------------------
-  if (strcmp(cmd, "e") == 0) {
-    seguranca_emergencia_ativar();
-    envelope_parar();
-    drv_parar();
-    Serial.println(F("[EMERGENCIA] Sistema parado. Digite 'r' para retomar."));
-    return;
-  }
-
-  if (strcmp(cmd, "r") == 0) {
-    if (seguranca_emergencia_ativa()) {
-      seguranca_emergencia_liberar();
-      Serial.println(F("[OK] Emergencia liberada. Sistema ativo."));
-    } else {
-      Serial.println(F("[INFO] Nenhuma emergencia ativa."));
+static void status(const char* args) {
+  int zone = -1;
+  if (*args) zone = atoi(args);
+  Serial.printf("emergency=%s ready=%u active=%u amplitude_sum=%u i2c_failures=%lu\n",
+    seguranca_emergencia_ativa() ? "YES" : "NO", zone_driver_ready_count(),
+    scheduler_active_count(), scheduler_amplitude_sum(),
+    (unsigned long)zone_driver_i2c_failures());
+  if (zone >= 0) {
+    if (zone >= zone_map_count()) {
+      Serial.println(F("[ERRO] Zona fora do mapa."));
+      return;
     }
+    const ZoneRuntimeState* state = scheduler_state((uint8_t)zone);
+    Serial.printf("zone=%d hw=%s active=%s mode=%u amplitude=%u missed_deadlines=%lu\n",
+      zone, zone_driver_status_name(zone_driver_status(zone)),
+      scheduler_zone_active(zone) ? "YES" : "NO", state->mode, state->amplitude,
+      (unsigned long)state->missedDeadlines);
+  }
+}
+
+static void commandPulse(const char* args) {
+  int zone, intensity;
+  unsigned long duration;
+  float frequency = DEFAULT_FREQ_HZ;
+  if (sscanf(args, "%d %d %lu %f", &zone, &intensity, &duration, &frequency) < 3) {
+    Serial.println(F("[ERRO] Uso: pulse <zone> <intens%> <ms> [Hz]"));
     return;
   }
+  const bool ok = zone >= 0 && zone < zone_map_count() &&
+    scheduler_start_pulse((uint8_t)zone, frequency, intensity, duration);
+  Serial.printf("[%s] pulse zone=%d\n", ok ? "OK" : "IGNORADO", zone);
+}
 
-  // --------------------------------------------------
-  // Demais comandos bloqueados durante emergência
-  // --------------------------------------------------
+static void commandEffect(const char* args) {
+  int zone, effect;
+  if (sscanf(args, "%d %d", &zone, &effect) != 2) {
+    Serial.println(F("[ERRO] Uso: effect <zone> <1-123>"));
+    return;
+  }
+  const bool ok = zone >= 0 && zone < zone_map_count() &&
+    scheduler_start_effect((uint8_t)zone, (uint8_t)effect);
+  Serial.printf("[%s] effect zone=%d\n", ok ? "OK" : "IGNORADO", zone);
+}
+
+static void commandMux(const char* args) {
+  int mux = 0;
+  char mode[12] = {0};
+  int consumed = 0;
+  if (sscanf(args, "%d %11s%n", &mux, mode, &consumed) < 2 || mux < 1 || mux > EXUS_MAX_MUXES) {
+    Serial.println(F("[ERRO] Uso: mux <1-8> <pulse|effect> ..."));
+    return;
+  }
+  if (!zone_driver_mux_present((uint8_t)mux)) {
+    Serial.printf("[INFO] mux %d ausente; nenhum atuador acionado.\n", mux);
+    return;
+  }
+  const char* tail = args + consumed;
+  while (*tail == ' ') ++tail;
+  uint8_t accepted = 0;
+  if (strcmp(mode, "pulse") == 0) {
+    int intensity;
+    unsigned long duration;
+    float frequency = DEFAULT_FREQ_HZ;
+    if (sscanf(tail, "%d %lu %f", &intensity, &duration, &frequency) < 2) {
+      Serial.println(F("[ERRO] Uso: mux <1-8> pulse <intens%> <ms> [Hz]"));
+      return;
+    }
+    accepted = scheduler_start_mux_pulse((uint8_t)mux, frequency, intensity, duration);
+  } else if (strcmp(mode, "effect") == 0) {
+    const int effect = atoi(tail);
+    if (effect < 1 || effect > 123) {
+      Serial.println(F("[ERRO] Efeito deve estar entre 1 e 123."));
+      return;
+    }
+    accepted = scheduler_start_mux_effect((uint8_t)mux, (uint8_t)effect);
+  } else {
+    Serial.println(F("[ERRO] Modo deve ser pulse ou effect."));
+    return;
+  }
+  Serial.printf("[%s] mux=%d zonas_acionadas=%u\n", accepted ? "OK" : "IGNORADO", mux, accepted);
+}
+
+static void commandGroup(const char* args) {
+  char maskText[20] = {0};
+  char mode[12] = {0};
+  int consumed = 0;
+  if (sscanf(args, "%19s %11s%n", maskText, mode, &consumed) < 2) {
+    Serial.println(F("[ERRO] Uso: group <mask> <pulse|effect> ..."));
+    return;
+  }
+  const uint64_t mask = strtoull(maskText, nullptr, 0);
+  const char* tail = args + consumed;
+  while (*tail == ' ') ++tail;
+  int intensity = 0, effect = 0;
+  unsigned long duration = 0;
+  float frequency = DEFAULT_FREQ_HZ;
+  if (strcmp(mode, "pulse") == 0) {
+    if (sscanf(tail, "%d %lu %f", &intensity, &duration, &frequency) < 2) return;
+  } else if (strcmp(mode, "effect") == 0) {
+    effect = atoi(tail);
+    if (effect < 1 || effect > 123) return;
+  } else return;
+
+  uint8_t accepted = 0;
+  for (uint8_t id = 0; id < zone_map_count(); ++id) {
+    if (!(mask & (UINT64_C(1) << id))) continue;
+    const bool ok = strcmp(mode, "pulse") == 0
+      ? scheduler_start_pulse(id, frequency, intensity, duration)
+      : scheduler_start_effect(id, (uint8_t)effect);
+    if (ok) ++accepted;
+  }
+  Serial.printf("[%s] group zonas_acionadas=%u\n", accepted ? "OK" : "IGNORADO", accepted);
+}
+
+static void commandStop(const char* args) {
+  if (!*args || strcmp(args, "all") == 0) {
+    scheduler_stop_all();
+  } else if (strncmp(args, "mux:", 4) == 0) {
+    const int mux = atoi(args + 4);
+    if (mux >= 1 && mux <= EXUS_MAX_MUXES) {
+      const uint8_t first = (uint8_t)((mux - 1) * 8);
+      for (uint8_t id = first; id < first + 8; ++id) scheduler_stop_zone(id);
+    }
+  } else {
+    const int zone = atoi(args);
+    if (zone >= 0 && zone < zone_map_count()) scheduler_stop_zone((uint8_t)zone);
+  }
+  Serial.println(F("[OK] stop processado."));
+}
+
+static void execute(const char* line) {
+  while (*line == ' ') ++line;
+  if (!*line) return;
+  char command[16] = {0};
+  uint8_t pos = 0;
+  while (*line && *line != ' ' && pos < sizeof(command) - 1) command[pos++] = tolower(*line++);
+  while (*line == ' ') ++line;
+  const char* args = line;
+
+  if (!strcmp(command, "emergency") || !strcmp(command, "e")) {
+    seguranca_emergencia_ativar();
+    scheduler_stop_all();
+    Serial.println(F("[EMERGENCIA] Todas as zonas paradas."));
+    return;
+  }
+  if (!strcmp(command, "resume") || !strcmp(command, "r")) {
+    scheduler_stop_all();
+    if (scheduler_active_count() != 0) {
+      Serial.println(F("[EMERGENCIA] Falha ao confirmar parada de todas as zonas; bloqueio mantido."));
+      return;
+    }
+    seguranca_emergencia_liberar();
+    Serial.println(F("[OK] Emergencia liberada apos inspecao."));
+    return;
+  }
+  if (!strcmp(command, "stop") || !strcmp(command, "s")) { commandStop(args); return; }
+  if (!strcmp(command, "status")) { status(args); return; }
+  if (!strcmp(command, "zones") || !strcmp(command, "scan")) { zone_driver_scan_report(); return; }
+  if (!strcmp(command, "q")) { capabilities(*args ? strtoul(args, nullptr, 10) : 0); return; }
+  if (!strcmp(command, "h") || !strcmp(command, "?")) { help(); return; }
   if (seguranca_emergencia_ativa()) {
-    Serial.println(F("[EMERGENCIA] Bloqueado. Digite 'r' para retomar."));
+    Serial.println(F("[EMERGENCIA] Comando bloqueado."));
     return;
   }
-
-  // Rate limit silencioso
   if (!seguranca_rate_limit_ok()) return;
   seguranca_registrar_comando();
 
-  // --------------------------------------------------
-  // Despacho por comando
-  // --------------------------------------------------
-  if (strcmp(cmd, "v") == 0) {
-    _cmd_vibrar(args);
-    return;
-  }
-
-  if (strcmp(cmd, "s") == 0) {
-    if (envelope_ativo()) {
-      envelope_parar();
-      Serial.println(F("[OK] Vibracao parada."));
-    } else {
-      drv_parar();
-      Serial.println(F("[OK] Motor parado."));
-    }
-    return;
-  }
-
-  if (strcmp(cmd, "ef") == 0) {
-    _cmd_efeito(args);
-    return;
-  }
-
-  if (strcmp(cmd, "h") == 0 || strcmp(cmd, "?") == 0) {
-    _ajuda();
-    return;
-  }
-
-  if (strcmp(cmd, "status") == 0) {
-    _status();
-    return;
-  }
-
-  if (strcmp(cmd, "scan") == 0) {
-    bool ok = drv_escanear_i2c();
-    Serial.printf("[%s] DRV2605 (0x5A): %s\n",
-                  ok ? "OK" : "ERRO",
-                  ok ? "detectado" : "NAO encontrado — verifique ligacoes");
-    return;
-  }
-
-  Serial.printf("[ERRO] Comando desconhecido: '%s'. Digite 'h' para ver ajuda.\n", cmd);
+  if (!strcmp(command, "pulse")) commandPulse(args);
+  else if (!strcmp(command, "effect")) commandEffect(args);
+  else if (!strcmp(command, "mux")) commandMux(args);
+  else if (!strcmp(command, "group")) commandGroup(args);
+  else if (!strcmp(command, "v")) {
+    float frequency; int intensity; unsigned long duration = 0;
+    if (sscanf(args, "%f %d %lu", &frequency, &intensity, &duration) >= 2)
+      Serial.printf("[%s] legacy zone=0\n", scheduler_start_pulse(0, frequency, intensity, duration) ? "OK" : "IGNORADO");
+  } else if (!strcmp(command, "ef")) {
+    Serial.printf("[%s] legacy zone=0\n", scheduler_start_effect(0, (uint8_t)atoi(args)) ? "OK" : "IGNORADO");
+  } else Serial.println(F("[ERRO] Comando desconhecido. Digite h."));
 }
 
-// --------------------------------------------------------
-// Leitura Serial linha a linha (não-bloqueante)
-// --------------------------------------------------------
-
 void comandos_processar() {
-  static char    buf[64];
+  static char buffer[SERIAL_BUFFER_SIZE];
   static uint8_t pos = 0;
-
+  static bool overflow = false;
   while (Serial.available()) {
-    char c = (char)Serial.read();
-
+    const char c = (char)Serial.read();
     if (c == '\n' || c == '\r') {
-      if (pos > 0) {
-        buf[pos] = '\0';
-        _executar(buf);
-        pos = 0;
-      }
-    } else if (pos < sizeof(buf) - 1) {
-      buf[pos++] = c;
-    } else {
-      // Buffer cheio: descarta a linha corrente
+      if (overflow) Serial.println(F("[ERRO] Linha Serial excedeu o buffer e foi descartada."));
+      else if (pos) { buffer[pos] = '\0'; execute(buffer); }
       pos = 0;
-    }
+      overflow = false;
+    } else if (!overflow && pos < sizeof(buffer) - 1) buffer[pos++] = c;
+    else overflow = true;
   }
 }

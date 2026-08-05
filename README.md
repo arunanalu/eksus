@@ -1,7 +1,8 @@
 # Eksus Firmware — Guia de Início 
 
-Firmware para **ESP32-C3 + DRV2605 + motor LRA** que cria sensações hápticas
-controlando o ritmo de pulsos de vibração pela porta USB Serial
+Firmware para **ESP32-C3 + TCA9548A + DRV2605L + motores LRA**. Funciona tanto
+com uma zona ligada diretamente quanto com uma quantidade descoberta dinamicamente
+de multiplexadores e atuadores, controlados pela porta USB Serial.
 
 > Para entender *por que* as decisões foram tomadas desta forma, leia a
 > [`SPEC-001`](docs/SPEC-001.md). A evolução do firmware para múltiplas zonas
@@ -31,6 +32,7 @@ controlando o ritmo de pulsos de vibração pela porta USB Serial
 | Placa ESP32-C3 (dev board com USB) | Qualquer dev board ESP32-C3 com conector USB serve |
 | Módulo DRV2605 ou DRV2605L (breakout) | O da **Adafruit** já vem com resistores I2C e facilita muito |
 | Motor **LRA** moeda | Deve ser LRA — **não ERM**. Anote a tensão nominal e a frequência de ressonância do datasheet |
+| TCA9548A (opcional) | Um multiplexador oferece 8 canais; endereços `0x70` a `0x77` permitem descobrir até 8 multiplexadores |
 | Cabo USB de **dados** | Cabos só de carga não funcionam para programação |
 | Protoboard + jumpers | Para os testes iniciais |
 
@@ -54,6 +56,11 @@ GPIO 9     →    SCL
 
 DRV2605 OUT+ / OUT-  →  terminais do motor LRA
 ```
+
+Para múltiplas zonas, ligue o barramento principal ao TCA9548A e, em cada canal,
+um DRV2605L com seu LRA. Cada canal comporta um atuador independente. Os pinos
+`A0/A1/A2` do TCA definem os endereços `0x70` a `0x77`; não repita endereços.
+O firmware varre todos esses endereços e todos os canais no boot.
 
 > **Se sua placa usar pinos I2C diferentes** de GPIO8/GPIO9, abra
 > [`firmware/Config.h`](firmware/Config.h) e altere `SDA_PIN` e `SCL_PIN`.
@@ -104,6 +111,17 @@ Dentro da Arduino IDE:
 Abra [`firmware/Config.h`](firmware/Config.h). Este é o **único arquivo que você
 precisa editar** para ajustar o comportamento básico.
 
+Escolha a topologia antes do upload:
+
+```c
+#define EXUS_USE_TCA9548A 0  // uma zona, DRV direto
+#define EXUS_USE_TCA9548A 1  // descobre TCAs 0x70..0x77 e até 64 canais
+```
+
+Com multiplexadores, o ID lógico é estável: `zone = (mux - 1) * 8 + canal`.
+Assim, mux 1/canal 0 é zona 0 e mux 4/canal 2 é zona 26. Um mux ou canal ausente
+fica marcado como indisponível e nunca é redirecionado para outra zona.
+
 ### 4.1 Tensão do motor LRA (obrigatório)
 
 Localize as duas linhas abaixo e substitua pelos valores do datasheet do **seu** motor:
@@ -134,6 +152,8 @@ Referência rápida de valores comuns:
 #define MAX_INTENSITY_PCT   50    // teto de intensidade em %
 #define MAX_DURATION_MS     5000  // duração máxima por ativação (ms)
 #define MIN_COOLDOWN_MS     300   // pausa mínima entre ativações (ms)
+#define MAX_SIMULTANEOUS_ZONES 8  // teto de zonas ativas
+#define MAX_GLOBAL_AMPLITUDE 320  // soma máxima de amplitudes RTP
 ```
 
 Comece com esses valores conservadores e suba `MAX_INTENSITY_PCT` só depois de
@@ -162,20 +182,14 @@ validar que a vibração está confortável na bancada.
 5. A saída esperada no Serial Monitor:
 
    ```
-   ==========================================
-     Exus Firmware — ESP32-C3 + DRV2605 LRA
-   ==========================================
-
-   [INFO] I2C iniciado: SDA=GPIO8  SCL=GPIO9
-   [INFO] Procurando DRV2605 em 0x5A... OK
-   [INFO] Inicializando DRV2605... OK
-   [INFO] Calibrando motor LRA (ate 1.5s)... OK
-
-   [OK] Sistema pronto. Digite 'h' para ver os comandos.
-   ------------------------------------------
+   === Exus Firmware multi-zona ===
+   [INFO] I2C SDA=8 SCL=9 clock=400000 Hz
+   [INFO] Topologia=TCA9548A dinamico; descobrindo hardware e calibrando sequencialmente...
+   [INFO] Descoberta concluida: 3 de 64 zonas prontas.
+   [OK] Digite 'zones' para diagnostico ou 'h' para ajuda.
    ```
 
-   Se aparecer `NAO ENCONTRADO` no scan I2C, vá para a seção
+   A contagem varia com a montagem. Se nenhuma zona ficar `READY`, vá para a seção
    [Solução de problemas](#8-solução-de-problemas).
 
 ---
@@ -189,10 +203,11 @@ Siga **essa ordem** para reduzir riscos. Não pule etapas.
 No Serial Monitor, digite:
 
 ```
-scan
+zones
 ```
 
-Resultado esperado: `[OK] DRV2605 (0x5A): detectado`
+Resultado esperado: cada TCA presente e seus canais com `READY`, `DRV_MISSING`
+ou uma falha explícita. Em ligação direta, deve aparecer `zone=0 direct status=READY`.
 
 Se não aparecer, o problema é de hardware — veja [Solução de problemas](#8-solução-de-problemas).
 
@@ -200,15 +215,16 @@ Se não aparecer, o problema é de hardware — veja [Solução de problemas](#8
 
 ### Teste 2 — Verificar boot sem acionar o motor
 
-Reinicie a placa (botão Reset) e observe as mensagens de inicialização.
-O motor **não deve vibrar** durante o boot. Se vibrar, há algo errado na inicialização.
+Reinicie a placa fora do corpo e observe as mensagens. Com `CALIBRATE_ON_BOOT=1`,
+cada motor presente pode vibrar brevemente, sempre de modo sequencial. Depois da
+descoberta, todos devem permanecer parados até um comando.
 
 ---
 
 ### Teste 3 — Primeiro pulso (intensidade mínima)
 
 ```
-v 10 15 500
+pulse 0 15 500 10
 ```
 
 Isso aciona **10 Hz, 15% de intensidade, por 500 ms** — o mínimo suficiente
@@ -225,11 +241,11 @@ interrompa os testes e revise as ligações.
 Experimente diferentes frequências e anote suas impressões:
 
 ```
-v 5 30 2000
-v 10 30 2000
-v 20 30 2000
-v 30 30 2000
-v 60 30 2000
+pulse 0 30 2000 5
+pulse 0 30 2000 10
+pulse 0 30 2000 20
+pulse 0 30 2000 30
+pulse 0 30 2000 60
 ```
 
 - Em frequências baixas (5–15 Hz) você deve sentir pulsos **distintos** e lentos.
@@ -243,23 +259,22 @@ v 60 30 2000
 
 1. Inicie uma vibração longa:
    ```
-   v 20 30 0
+   pulse 0 30 5000 20
    ```
-   *(0 ms = contínuo)*
 
 2. Sem esperar, envie o comando de emergência:
    ```
-   e
+   emergency
    ```
 
 3. O motor deve parar **imediatamente**. O Serial Monitor deve mostrar:
    ```
-   [EMERGENCIA] Sistema parado. Digite 'r' para retomar.
+   [EMERGENCIA] Todas as zonas paradas.
    ```
 
 4. Retome o sistema:
    ```
-   r
+   resume
    ```
 
 Este teste é obrigatório antes de qualquer uso próximo ao corpo.
@@ -271,13 +286,30 @@ Este teste é obrigatório antes de qualquer uso próximo ao corpo.
 Execute 5 a 10 ativações consecutivas e observe:
 
 ```
-v 30 40 1000
-v 30 40 1000
-v 30 40 1000
+pulse 0 40 1000 30
+pulse 0 40 1000 30
+pulse 0 40 1000 30
 ```
 
 A placa não deve reiniciar sozinha entre os comandos. Se reiniciar, veja
 [ESP32 reinicia ao vibrar](#esp32-reinicia-sozinho-ao-vibrar) na solução de problemas.
+
+### Teste 7 — Descoberta e isolamento multi-zona
+
+Com `EXUS_USE_TCA9548A=1`, execute `zones` e confira a correspondência física de
+cada zona `READY` com pulsos individuais. Depois teste um mux presente e outro
+ausente:
+
+```
+mux 1 pulse 20 300 20
+mux 4 pulse 20 300 20
+```
+
+O primeiro aciona somente os canais prontos do mux 1. Se o mux 4 não existir, a
+resposta informa `nenhum atuador acionado` e nenhum outro motor pode vibrar.
+Repita removendo um DRV por vez e confirme que as zonas saudáveis continuam
+endereçáveis. Antes de uso corporal, ainda são obrigatórios os ensaios incrementais
+de corrente, temperatura, jitter, crosstalk e emergência definidos na SPEC-002.
 
 ---
 
@@ -287,22 +319,29 @@ Todos os comandos são enviados pelo Serial Monitor (115200 baud), um por linha.
 
 | Comando | Descrição | Exemplo |
 |---------|-----------|---------|
-| `v <freq> <intens%> [ms]` | Vibrar com frequência percebida. `ms` omitido = contínuo | `v 30 40 2000` |
-| `s` | Parar a vibração atual | `s` |
-| `e` | **Parada de emergência** — bloqueia tudo imediatamente | `e` |
-| `r` | Retomar após emergência | `r` |
-| `ef <1-123>` | Tocar efeito built-in da biblioteca do DRV2605 (LRA) | `ef 14` |
-| `status` | Exibir estado atual (emergência, limites configurados) | `status` |
-| `scan` | Re-verificar presença do DRV2605 no I2C | `scan` |
+| `zones` ou `scan all` | Listar muxes, canais e estados descobertos | `zones` |
+| `pulse <zona> <intens%> <ms> [Hz]` | Envelope RTP em uma zona | `pulse 10 30 800 25` |
+| `effect <zona> <1-123>` | Efeito ROM em uma zona | `effect 10 14` |
+| `mux <1-8> pulse <intens%> <ms> [Hz]` | Pulso em todos os atuadores prontos do mux | `mux 2 pulse 25 500 30` |
+| `mux <1-8> effect <1-123>` | Efeito em todos os atuadores prontos do mux | `mux 2 effect 14` |
+| `group <máscara> ...` | Acionar uma máscara lógica de até 64 zonas | `group 0x03 effect 14` |
+| `stop <zona\|mux:N\|all>` | Parar uma zona, mux ou tudo | `stop mux:2` |
+| `emergency` / `resume` | Parada global e liberação após inspeção | `emergency` |
+| `status [zona]` | Diagnóstico global ou detalhado | `status 10` |
+| `Q [seq]` | Capacidades e lista de zonas prontas | `Q 42` |
 | `h` ou `?` | Mostrar ajuda na própria Serial | `h` |
 
-**Parâmetros do comando `v`:**
+Os aliases antigos `v`, `ef`, `s`, `e` e `r` continuam disponíveis e operam na
+zona 0. Toda ativação expira no teto configurado, inclusive quando a duração
+enviada é zero. Pedidos para muxes ou zonas ausentes não acionam outro motor.
+
+**Parâmetros de pulsos RTP:**
 
 | Parâmetro | Intervalo válido | Padrão se omitido |
 |-----------|-----------------|-------------------|
 | `freq` (Hz) | 1 – 100 | — (obrigatório) |
 | `intens%` | 0 – 50* | — (obrigatório) |
-| `ms` | 0 – 5000 | 0 (contínuo) |
+| `ms` | 1 – 5000 | obrigatório nos comandos novos |
 
 *O teto de intensidade (`MAX_INTENSITY_PCT = 50`) pode ser ajustado em `Config.h`.
 Valores acima do teto são automaticamente recortados.
@@ -380,9 +419,13 @@ Causa: queda de tensão na alimentação USB.
 firmware/
 ├── firmware.ino        ← ponto de entrada (setup + loop)
 ├── Config.h            ← todas as constantes editáveis
-├── DriverHaptico.h/.cpp  ← comunicação com o DRV2605 via I2C
-├── GeradorEnvelope.h/.cpp  ← gerador de pulsos não-bloqueante
-├── Seguranca.h/.cpp    ← limites de segurança e emergência
+├── MuxManager.h/.cpp   ← descoberta e seleção exclusiva de TCA/canal
+├── ZoneMap.h/.cpp      ← IDs lógicos e topologia direta/dinâmica
+├── ZoneDriver.h/.cpp   ← roteamento e diagnóstico por atuador
+├── MultiZoneScheduler.h/.cpp ← RTP/ROM independente por zona
+├── DriverHaptico.h/.cpp  ← acesso de baixo nível ao DRV2605
+├── GeradorEnvelope.h/.cpp  ← compatibilidade da API de uma zona
+├── Seguranca.h/.cpp    ← limites zonais/globais e emergência
 └── Comandos.h/.cpp     ← interface USB Serial
 ```
 

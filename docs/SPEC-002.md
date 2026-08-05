@@ -1,6 +1,8 @@
 # SPEC-002 — Evolução do firmware para múltiplas zonas hápticas
 
-> **Status:** proposta técnica independente para implementação
+> **Status:** implementação de software adicionada em 5 de agosto de 2026;
+> compilação no toolchain Arduino e validação elétrica/mecânica com hardware real
+> permanecem obrigatórias
 >
 > **Base mínima:** [SPEC-001 — firmware háptico de uma zona](SPEC-001.md) e [documentação técnica do Projeto Exus](projeto_eksus_documentacao.pdf)
 >
@@ -50,6 +52,27 @@ Para as oito zonas previstas no PDF, a topologia recomendada continua sendo **um
 ---
 
 ## 3. Estado atual do repositório
+
+### 3.1. Implementação entregue
+
+O firmware agora preserva `direct_single_zone` e oferece uma topologia dinâmica
+habilitada por `EXUS_USE_TCA9548A`. Nesse modo ele descobre TCAs nos endereços
+`0x70..0x77`, verifica os oito canais de cada um e atribui o ID lógico
+`(número do mux - 1) * 8 + canal`. Portanto, a quantidade física não precisa ser
+conhecida na compilação: existem até 64 slots, mas apenas zonas `READY` aceitam
+acionamento.
+
+O comando `mux <1-8> pulse ...` ou `mux <1-8> effect ...` tenta acionar todas as
+zonas prontas daquele multiplexador, sujeito aos limites globais de simultaneidade
+e amplitude. Um mux inexistente produz um no-op diagnosticado; nunca redireciona
+o pedido. Esta generalização mantém a premissa elétrica de um DRV2605L/LRA por
+canal — um TCA não controla motores diretamente.
+
+Arquivos implementados: `MuxManager`, `ZoneMap`, `ZoneDriver`,
+`MultiZoneScheduler`, segurança zonal/global e o roteador de comandos em
+`Comandos`. A descoberta, calibração e falha parcial estão implementadas, mas os
+gates de corrente, jitter, crosstalk, soak test e identificação física exigem a
+montagem real e não são considerados aprovados por revisão de código.
 
 | Capacidade | Situação atual | Evolução necessária |
 |---|---|---|
