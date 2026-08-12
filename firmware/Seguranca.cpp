@@ -1,5 +1,6 @@
 #include "Seguranca.h"
 #include "Config.h"
+#include "ZoneDriver.h"
 #include "ZoneMap.h"
 
 static bool emergency = false;
@@ -14,9 +15,15 @@ ParametrosValidados seguranca_validar_zona(uint8_t zoneId, float freq_hz,
   if (!config || !config->enabled || emergency) return result;
 
   result.freq_hz = constrain(freq_hz, MIN_FREQ_HZ, MAX_FREQ_HZ);
-  const uint8_t maxPct = min((uint8_t)MAX_INTENSITY_PCT, config->limits.maxIntensityPct);
+  uint8_t maxPct = min((uint8_t)MAX_INTENSITY_PCT, config->limits.maxIntensityPct);
+  if (zone_driver_uncalibrated(zoneId)) {
+    maxPct = min(maxPct, (uint8_t)UNCALIBRATED_MAX_INTENSITY_PCT);
+  }
   intensity_pct = constrain(intensity_pct, 0, maxPct);
-  const uint32_t maxDuration = min((uint32_t)MAX_DURATION_MS, config->limits.maxDurationMs);
+  uint32_t maxDuration = min((uint32_t)MAX_DURATION_MS, config->limits.maxDurationMs);
+  if (zone_driver_uncalibrated(zoneId)) {
+    maxDuration = min(maxDuration, (uint32_t)UNCALIBRATED_MAX_DURATION_MS);
+  }
   if (durationMs == 0 || durationMs > maxDuration) result.duracao_ms = maxDuration;
   result.duty_cycle = constrain(dutyCycle, 0.1f, 0.9f);
   result.amplitude = (uint8_t)((intensity_pct / 100.0f) * 127.0f);

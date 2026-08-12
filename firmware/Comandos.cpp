@@ -13,7 +13,7 @@ static void help() {
   Serial.println(F("pulse <zone> <intens%> <ms> [Hz] envelope RTP por zona"));
   Serial.println(F("effect <zone> <1-123>            efeito ROM por zona"));
   Serial.println(F("mux <1-8> pulse <intens%> <ms> [Hz]"));
-  Serial.println(F("mux <1-8> effect <1-123>         aciona zonas prontas do mux"));
+  Serial.println(F("mux <1-8> effect <1-123>         aciona zonas calibradas do mux"));
   Serial.println(F("group <mask> pulse <intens%> <ms> [Hz]"));
   Serial.println(F("group <mask> effect <1-123>       mascara de 64 bits (ex.: 0x03)"));
   Serial.println(F("stop <zone|mux:N|all> | status [zone] | Q [seq]"));
@@ -52,6 +52,10 @@ static void status(const char* args) {
       zone, zone_driver_status_name(zone_driver_status(zone)),
       scheduler_zone_active(zone) ? "YES" : "NO", state->mode, state->amplitude,
       (unsigned long)state->missedDeadlines);
+    if (zone_driver_uncalibrated((uint8_t)zone)) {
+      Serial.printf("[AVISO] Somente bancada: RTP limitado a %u%% por %lums; efeitos ROM bloqueados.\n",
+        UNCALIBRATED_MAX_INTENSITY_PCT, (unsigned long)UNCALIBRATED_MAX_DURATION_MS);
+    }
   }
 }
 

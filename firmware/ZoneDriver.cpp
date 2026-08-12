@@ -51,7 +51,12 @@ void zone_driver_begin() {
 #if CALIBRATE_ON_BOOT
     if (!drv_calibrar(config.motor.ratedVoltage, config.motor.overdriveClamp)) {
       drv_parar();
+#if ALLOW_UNCALIBRATED_ZONES
+      statuses[id] = ZONE_READY_UNCALIBRATED;
+      Serial.printf("[AVISO] zone=%u calibration failed; RTP limitado para bancada.\n", id);
+#else
       statuses[id] = ZONE_CALIBRATION_FAILED;
+#endif
       continue;
     }
 #endif
@@ -62,7 +67,7 @@ void zone_driver_begin() {
 }
 
 bool zone_driver_select(uint8_t zoneId) {
-  if (zoneId >= zone_map_count() || statuses[zoneId] != ZONE_READY) return false;
+  if (zoneId >= zone_map_count() || !zone_driver_ready(zoneId)) return false;
   const ZoneConfig config = *zone_map_get(zoneId);
   if (!selectConfig(config)) {
     statuses[zoneId] = ZONE_I2C_FAILED;
@@ -93,12 +98,18 @@ bool zone_driver_stop(uint8_t zoneId) {
   // pode tornar o comando de segurança impossível por causa do primeiro NACK.
   if (!selectConfig(config)) return false;
   drv_parar();
-  statuses[zoneId] = ZONE_READY;
+  statuses[zoneId] = previous == ZONE_READY_UNCALIBRATED
+    ? ZONE_READY_UNCALIBRATED : ZONE_READY;
   return true;
 }
 
 bool zone_driver_ready(uint8_t zoneId) {
-  return zoneId < zone_map_count() && statuses[zoneId] == ZONE_READY;
+  return zoneId < zone_map_count() &&
+    (statuses[zoneId] == ZONE_READY || statuses[zoneId] == ZONE_READY_UNCALIBRATED);
+}
+
+bool zone_driver_uncalibrated(uint8_t zoneId) {
+  return zoneId < zone_map_count() && statuses[zoneId] == ZONE_READY_UNCALIBRATED;
 }
 
 ZoneHardwareStatus zone_driver_status(uint8_t zoneId) {
@@ -112,6 +123,7 @@ const char* zone_driver_status_name(ZoneHardwareStatus status) {
     case ZONE_DRV_MISSING: return "DRV_MISSING";
     case ZONE_CALIBRATION_FAILED: return "CALIBRATION_FAILED";
     case ZONE_I2C_FAILED: return "I2C_FAILED";
+    case ZONE_READY_UNCALIBRATED: return "READY_UNCALIBRATED";
     default: return "DISABLED";
   }
 }

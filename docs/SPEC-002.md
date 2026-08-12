@@ -539,3 +539,13 @@ Estimativa para uma pessoa com experiência em Arduino/C++, sem incluir PCB, com
 ---
 
 **Conclusão:** a evolução multi-zona pertence ao firmware e pode ser concluída por testes Serial independentemente da integração com jogos. A SPEC-003 deve enxergar zonas apenas como capacidades lógicas; isso permite desenvolver as duas trilhas em qualquer ordem e integrá-las sem misturar endereços I²C, regras de jogo ou responsabilidades de segurança.
+
+---
+
+## Adendo A - calibração por perfil de LRA e bancada sem calibração
+
+**Decisão (12 de agosto de 2026):** os três atuadores presentes no mux 1 são LRA, mas não devem compartilhar implicitamente a mesma configuração elétrica. As zonas 0 e 1 usam o perfil `COIN_LRA_*` (moeda) e a zona 2 usa `BAR_LRA_*` (bastão). Cada perfil possui registradores independentes de tensão nominal RMS e overdrive clamp em `Config.h`; seus valores devem ser preenchidos a partir do datasheet do respectivo motor. O formato físico, por si só, não determina o valor: tensão, ressonância e fixação mecânica também influenciam a auto-calibração.
+
+A auto-calibração continua sequencial e limitada a 1,5 s por zona durante o boot. Isso é bloqueante somente na inicialização, nunca no scheduler de RTP. Em produção, recomenda-se uma fase explícita de comissionamento e boot normal sem recalibrar todos os motores.
+
+Enquanto os ensaios ocorrem fora da máscara, `ALLOW_UNCALIBRATED_ZONES=1` permite que uma zona cujo DRV foi encontrado, mas cuja calibração falhou, seja exposta como `READY_UNCALIBRATED`. Ela aceita exclusivamente RTP, limitado pelo firmware a 15% e 500 ms; efeitos ROM ficam bloqueados porque não permitem o mesmo controle fino de amplitude. O log e `status <zona>` preservam o aviso. Antes de testes na máscara/corpo, definir `ALLOW_UNCALIBRATED_ZONES=0`, corrigir os parâmetros e a fixação, e exigir calibração bem-sucedida.

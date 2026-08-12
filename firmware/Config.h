@@ -21,6 +21,20 @@
 #define EXUS_MAX_ZONES 64
 #define CALIBRATE_ON_BOOT 1
 
+// Somente bancada: mantem uma zona utilizavel apos falha de auto-calibracao,
+// com limites RTP conservadores. Mude para 0 antes de teste na mascara/corpo.
+#define ALLOW_UNCALIBRATED_ZONES 1
+#define UNCALIBRATED_MAX_INTENSITY_PCT 15
+#define UNCALIBRATED_MAX_DURATION_MS 500UL
+
+// Perfis LRA independentes. Substitua estes valores iniciais pelos valores do
+// datasheet de cada motor antes de uso fora da bancada.
+#define COIN_LRA_RATED_VOLTAGE_REG 0x3E
+#define COIN_LRA_OD_CLAMP_REG      0x89
+#define BAR_LRA_RATED_VOLTAGE_REG  0x3E
+#define BAR_LRA_OD_CLAMP_REG       0x89
+
+// Perfil de reserva para zonas ainda nao mapeadas abaixo.
 #define LRA_RATED_VOLTAGE_REG 0x3E
 #define LRA_OD_CLAMP_REG 0x89
 
