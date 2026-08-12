@@ -55,7 +55,7 @@ bool scheduler_start_pulse(uint8_t zoneId, float frequencyHz, int intensityPct,
 
 bool scheduler_start_effect(uint8_t zoneId, uint8_t effect, uint8_t priority) {
   if (effect < 1 || effect > 123 || !zone_driver_ready(zoneId) ||
-      !seguranca_cooldown_zona_ok(zoneId)) return false;
+      !seguranca_cooldown_zona_ok(zoneId) || zone_driver_uncalibrated(zoneId)) return false;
   ParametrosValidados p = seguranca_validar_zona(zoneId, DEFAULT_FREQ_HZ,
     DEFAULT_INTENSITY_PCT, ROM_EFFECT_TIMEOUT_MS, DEFAULT_DUTY_CYCLE);
   if (!p.valido || !budgetAllows(zoneId, p.amplitude, priority)) return false;
