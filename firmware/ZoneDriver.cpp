@@ -43,13 +43,13 @@ void zone_driver_begin() {
       statuses[id] = ZONE_DRV_MISSING;
       continue;
     }
-    if (!drv_iniciar(config.motor.ratedVoltage, config.motor.overdriveClamp)) {
+    if (!drv_iniciar(config.motor)) {
       statuses[id] = ZONE_I2C_FAILED;
       ++i2cFailures;
       continue;
     }
 #if CALIBRATE_ON_BOOT
-    if (!drv_calibrar(config.motor.ratedVoltage, config.motor.overdriveClamp)) {
+    if (config.motor.type == MOTOR_LRA && !drv_calibrar(config.motor)) {
       drv_parar();
 #if ALLOW_UNCALIBRATED_ZONES
       statuses[id] = ZONE_READY_UNCALIBRATED;
@@ -78,13 +78,15 @@ bool zone_driver_select(uint8_t zoneId) {
 
 bool zone_driver_set_rtp(uint8_t zoneId, uint8_t amplitude) {
   if (!zone_driver_select(zoneId)) return false;
-  drv_set_rtp(amplitude);
+  const ZoneConfig config = *zone_map_get(zoneId);
+  drv_set_rtp(config.motor, amplitude);
   return true;
 }
 
 bool zone_driver_play_effect(uint8_t zoneId, uint8_t effect) {
   if (!zone_driver_select(zoneId) || effect < 1 || effect > 123) return false;
-  drv_tocar_efeito(effect);
+  const ZoneConfig config = *zone_map_get(zoneId);
+  drv_tocar_efeito(config.motor, effect);
   return true;
 }
 

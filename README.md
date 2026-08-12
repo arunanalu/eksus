@@ -1,6 +1,6 @@
 # Eksus Firmware — Guia de Início 
 
-Firmware para **ESP32-C3 + TCA9548A + DRV2605L + motores LRA**. Funciona tanto
+Firmware para **ESP32-C3 + TCA9548A + DRV2605L + motores LRA ou ERM**. Funciona tanto
 com uma zona ligada diretamente quanto com uma quantidade descoberta dinamicamente
 de multiplexadores e atuadores, controlados pela porta USB Serial.
 
@@ -31,14 +31,14 @@ de multiplexadores e atuadores, controlados pela porta USB Serial.
 |------|-----------|
 | Placa ESP32-C3 (dev board com USB) | Qualquer dev board ESP32-C3 com conector USB serve |
 | Módulo DRV2605 ou DRV2605L (breakout) | O da **Adafruit** já vem com resistores I2C e facilita muito |
-| Motor **LRA** moeda | Deve ser LRA — **não ERM**. Anote a tensão nominal e a frequência de ressonância do datasheet |
+| Motor háptico por zona | LRA ou ERM, conforme o perfil configurado. Anote tensão nominal e, para LRA, frequência de ressonância |
 | TCA9548A (opcional) | Um multiplexador oferece 8 canais; endereços `0x70` a `0x77` permitem descobrir até 8 multiplexadores |
 | Cabo USB de **dados** | Cabos só de carga não funcionam para programação |
 | Protoboard + jumpers | Para os testes iniciais |
 
-> **Motor LRA vs. ERM:** motores LRA são "ressonantes" (flat, como moeda).
-> Motores ERM são cilíndricos com massa excêntrica. O código configura o DRV2605
-> em modo LRA — com um motor ERM ele não funcionará corretamente.
+> **Motor LRA vs. ERM:** LRA é ressonante; ERM usa massa excêntrica. O firmware
+> seleciona o modo por zona. Na montagem atual, as zonas 0 e 1 são moedas ERM
+> 1020 (3 V) e a zona 2 é o bastão LRA 0619AAC (1,2 Vrms, 170 Hz).
 
 ---
 
@@ -122,29 +122,33 @@ Com multiplexadores, o ID lógico é estável: `zone = (mux - 1) * 8 + canal`.
 Assim, mux 1/canal 0 é zona 0 e mux 4/canal 2 é zona 26. Um mux ou canal ausente
 fica marcado como indisponível e nunca é redirecionado para outra zona.
 
-### 4.1 Tensão do motor LRA (obrigatório)
+### 4.1 Perfis dos motores (obrigatório)
 
-Localize as duas linhas abaixo e substitua pelos valores do datasheet do **seu** motor:
+Em `Config.h`, os perfis atuais já distinguem as moedas ERM das zonas 0 e 1 e o
+bastão LRA da zona 2. Para ERM em modo aberto, `OD_CLAMP` limita a amplitude;
+para LRA, tensão RMS, clamp e `DRIVE_TIME` participam da calibração. Confirme os
+valores na bancada antes de qualquer uso corporal.
 
 ```c
-// Tensão nominal RMS do motor → estimativa: (V_rms / 1.8) × 90
-#define LRA_RATED_VOLTAGE_REG   0x3E   // padrão: ~1,8 V rms
+// ERM: referência de amplitude em modo aberto (aprox. 3 V)
+#define ERM_COIN_OD_CLAMP_REG   0x8B   // moedas ERM 1020, 3 V
 
-// Tensão de pico máxima → estimativa: 1,5× a 2× a tensão nominal
-#define LRA_OD_CLAMP_REG        0x89   // padrão: ~3,2 V pico
+// LRA: tensão RMS, clamp de pico e tempo inicial de acionamento
+#define BAR_LRA_RATED_VOLTAGE_REG 0x32 // bastão LRA 0619AAC, 1,2 Vrms
+#define BAR_LRA_OD_CLAMP_REG      0x50 // clamp conservador: ~1,70 Vp
+#define BAR_LRA_DRIVE_TIME_REG    0x18 // estimativa inicial para 170 Hz
 ```
 
 Referência rápida de valores comuns:
 
-| Tensão nominal do motor | `LRA_RATED_VOLTAGE_REG` | `LRA_OD_CLAMP_REG` |
-|------------------------|------------------------|-------------------|
-| ~1,8 V rms             | `0x3E`                 | `0x89`            |
-| ~2,0 V rms             | `0x50`                 | `0x8C`            |
-| ~2,5 V rms             | `0x64`                 | `0xA4`            |
+| Zonas | Tipo/modelo | Perfil |
+|-------|-------------|--------|
+| 0 e 1 | ERM moeda 1020, 3 V | `ERM_COIN_OD_CLAMP_REG=0x8B`; modo aberto, sem auto-calibração LRA |
+| 2 | LRA bastão 0619AAC, 1,2 Vrms / 170 Hz | `BAR_LRA_*`; calibração LRA sequencial |
 
-> Se não souber os valores exatos, comece com os padrões. O código ainda
-> funcionará; a auto-calibração pode reportar aviso, mas o motor deve vibrar.
-> Ajuste progressivamente até a vibração ficar estável.
+> Para o LRA, a auto-calibração pode reportar aviso enquanto a configuração ou
+> fixação ainda não estiver correta; ajuste somente em bancada. Para o ERM,
+> valide `OD_CLAMP` com pulsos curtos, pois ele opera em modo aberto.
 
 ### 4.2 Limites de segurança (opcional — padrões conservadores)
 

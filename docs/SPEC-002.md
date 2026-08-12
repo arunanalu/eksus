@@ -542,10 +542,21 @@ Estimativa para uma pessoa com experiência em Arduino/C++, sem incluir PCB, com
 
 ---
 
-## Adendo A - calibração por perfil de LRA e bancada sem calibração
+## Adendo A - perfis ERM/LRA reais e política de calibração
 
-**Decisão (12 de agosto de 2026):** os três atuadores presentes no mux 1 são LRA, mas não devem compartilhar implicitamente a mesma configuração elétrica. As zonas 0 e 1 usam o perfil `COIN_LRA_*` (moeda) e a zona 2 usa `BAR_LRA_*` (bastão). Cada perfil possui registradores independentes de tensão nominal RMS e overdrive clamp em `Config.h`; seus valores devem ser preenchidos a partir do datasheet do respectivo motor. O formato físico, por si só, não determina o valor: tensão, ressonância e fixação mecânica também influenciam a auto-calibração.
+**Correção (12 de agosto de 2026):** a premissa anterior de que os três atuadores do mux 1 eram LRA estava incorreta. A conferência dos produtos comprados identificou os seguintes perfis:
 
-A auto-calibração continua sequencial e limitada a 1,5 s por zona durante o boot. Isso é bloqueante somente na inicialização, nunca no scheduler de RTP. Em produção, recomenda-se uma fase explícita de comissionamento e boot normal sem recalibrar todos os motores.
+| Zonas | Atuador | Tipo | Configuração aplicada |
+|---|---|---|---|
+| 0 e 1 | moeda 1020, 10 x 2 mm, 3 V, 10.000 rpm | ERM | `ERM_COIN_*`, biblioteca ERM 1 e modo aberto; não executa auto-calibração LRA |
+| 2 | bastão 0619AAC, 19 x 6 x 3 mm, 1,2 Vrms, 170 +/- 5 Hz, até 100 mA | LRA | `BAR_LRA_*`, biblioteca LRA 6, malha fechada e auto-calibração |
 
-Enquanto os ensaios ocorrem fora da máscara, `ALLOW_UNCALIBRATED_ZONES=1` permite que uma zona cujo DRV foi encontrado, mas cuja calibração falhou, seja exposta como `READY_UNCALIBRATED`. Ela aceita exclusivamente RTP, limitado pelo firmware a 15% e 500 ms; efeitos ROM ficam bloqueados porque não permitem o mesmo controle fino de amplitude. O log e `status <zona>` preservam o aviso. Antes de testes na máscara/corpo, definir `ALLOW_UNCALIBRATED_ZONES=0`, corrigir os parâmetros e a fixação, e exigir calibração bem-sucedida.
+Para o 0619AAC, o firmware parte de `RATED_VOLTAGE=0x32` (1,2 Vrms com `SAMPLE_TIME=300 us`), `OD_CLAMP=0x50` (aprox. 1,70 Vp, conservador) e `DRIVE_TIME=0x18` (aprox. 2,9 ms, próximo de metade do período a 170 Hz). Esses valores devem ser confirmados em bancada com o motor fixado na montagem final. O anúncio fornece especificações de revenda, não um datasheet original do fabricante.
+
+A auto-calibração do LRA continua sequencial e limitada a 1,5 s por zona durante o boot. Isso é bloqueante somente na inicialização, nunca no scheduler de RTP. Os ERMs em modo aberto não requerem nem podem usar a detecção automática de ressonância LRA.
+
+No RTP bidirecional do ERM em modo aberto, `0x80` representa repouso; portanto, o driver converte internamente a amplitude lógica `0..127` para `0x80..0xFF`. Assim, o trecho "desligado" do envelope não aplica frenagem reversa contínua ao motor moeda.
+
+Enquanto os ensaios do LRA ocorrem fora da máscara, `ALLOW_UNCALIBRATED_ZONES=1` permite que uma zona LRA cujo DRV foi encontrado, mas cuja calibração falhou, seja exposta como `READY_UNCALIBRATED`. Ela aceita exclusivamente RTP, limitado pelo firmware a 15% e 500 ms; efeitos ROM ficam bloqueados porque não permitem o mesmo controle fino de amplitude. A opção não se aplica às moedas ERM: elas devem surgir como `READY` quando o DRV estiver presente. Antes de testes na máscara/corpo, definir `ALLOW_UNCALIBRATED_ZONES=0` e exigir calibração bem-sucedida da zona LRA.
+
+Referências de compra e configuração: [moeda ERM 1020](https://pt.aliexpress.com/item/1005009820342320.html), [bastão LRA 0619AAC](https://pt.aliexpress.com/item/1005006421331249.html) e [datasheet DRV2605L](https://www.ti.com/lit/ds/symlink/drv2605l.pdf).

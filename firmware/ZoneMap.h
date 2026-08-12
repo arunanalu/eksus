@@ -13,9 +13,16 @@ enum ZonePosition : uint8_t {
   ZONE_NUCA
 };
 
+enum MotorType : uint8_t {
+  MOTOR_ERM,
+  MOTOR_LRA
+};
+
 struct MotorConfig {
+  MotorType type;
   uint8_t ratedVoltage;
   uint8_t overdriveClamp;
+  uint8_t lraDriveTime;
 };
 
 struct ZoneSafetyLimits {
