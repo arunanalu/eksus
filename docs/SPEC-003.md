@@ -335,6 +335,9 @@ Esta SPEC entrega o transporte de dispositivo e o cliente de bancada. A
 SPEC-004 consome o mesmo contrato lógico por `BleTransport` ou
 `SerialTransport`, sem conhecer TCA, canal físico, ERM/LRA, bateria ou OTA.
 
+O aplicativo visual para uso do grupo, que reutiliza o cliente/protocolo BLE sem
+substituir o firmware, é detalhado na [SPEC-003.5](SPEC-003.5.md).
+
 ## Referências
 
 - [ESP32-C3 Bluetooth LE — Espressif](https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/api-guides/ble/overview.html)
