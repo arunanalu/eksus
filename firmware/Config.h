@@ -11,10 +11,11 @@
 #define TCA9548A_LAST_ADDR 0x77
 #define DIRECT_MUX_ADDRESS 0xFF
 
-// 0 preserva o hardware da SPEC-001 (DRV ligado diretamente ao ESP32).
-// 1 descobre automaticamente TCAs em 0x70..0x77 e os DRVs de cada canal.
+// Topologia padrão do protótipo atual: descobre automaticamente TCAs em
+// 0x70..0x77 e os DRVs de cada canal. Mude para 0 somente para testar uma zona
+// com DRV ligado diretamente ao ESP32, sem TCA9548A.
 #ifndef EXUS_USE_TCA9548A
-#define EXUS_USE_TCA9548A 0
+#define EXUS_USE_TCA9548A 1
 #endif
 
 #define EXUS_MAX_MUXES 8
