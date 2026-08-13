@@ -1,6 +1,7 @@
 // Exus — firmware multi-zona para ESP32-C3, TCA9548A e DRV2605L/LRA.
 
 #include <Wire.h>
+#include "BleTransport.h"
 #include "Comandos.h"
 #include "Config.h"
 #include "MultiZoneScheduler.h"
@@ -28,11 +29,13 @@ void setup() {
   if (!ready) {
     Serial.println(F("[AVISO] Nenhuma zona pronta; comandos hapticos serao ignorados com seguranca."));
   }
+  ble_transport_begin();
   Serial.println(F("[OK] Digite 'zones' para diagnostico ou 'h' para ajuda."));
 }
 
 void loop() {
   comandos_processar();
+  ble_transport_process();
   if (seguranca_emergencia_ativa()) {
     scheduler_stop_all();  // repete a parada se houve NACK transitório
     return;

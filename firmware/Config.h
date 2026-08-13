@@ -62,3 +62,12 @@
 
 #define SERIAL_BAUD 115200
 #define SERIAL_BUFFER_SIZE 128
+
+// Bluetooth LE (SPEC-003). NimBLE-Arduino 2.x é uma dependência obrigatória
+// quando esta flag está ativa.
+#define EXUS_BLE_ENABLED 1
+#define BLE_COMMAND_BUFFER_SIZE 128
+#define BLE_RESPONSE_BUFFER_SIZE 256
+#define BLE_PAIR_WINDOW_MS 60000UL
+#define BLE_COMMAND_WATCHDOG_MS 2000UL
+#define BLE_FRAGMENT_TIMEOUT_MS 3000UL
