@@ -120,12 +120,14 @@ Ela é necessária para compilar a versão do firmware que anuncia Bluetooth LE.
 Abra [`firmware/Config.h`](firmware/Config.h). Este é o **único arquivo que você
 precisa editar** para ajustar o comportamento básico.
 
-Escolha a topologia antes do upload:
+O padrão do protótipo atual é TCA9548A e **não precisa ser alterado**:
 
 ```c
-#define EXUS_USE_TCA9548A 0  // uma zona, DRV direto
 #define EXUS_USE_TCA9548A 1  // descobre TCAs 0x70..0x77 e até 64 canais
 ```
+
+Use `0` somente para uma bancada de uma zona, com o DRV ligado diretamente ao
+ESP32 e sem TCA9548A.
 
 Com multiplexadores, o ID lógico é estável: `zone = (mux - 1) * 8 + canal`.
 Assim, mux 1/canal 0 é zona 0 e mux 4/canal 2 é zona 26. Um mux ou canal ausente
@@ -486,9 +488,10 @@ arquivo `.exe` — e levá-la ao PC que ficará com o protótipo.
 > Control.
 
 > Se a busca não listar nenhum `Exus-XXXXXX`, reconecte a USB e confirme no
-> Serial Monitor a mensagem `[BLE] Anunciando Exus-...`. Atualize primeiro o
-> firmware e depois recrie/obtenha a versão atual do Exus Control; ambos precisam
-> estar na mesma versão do repositório.
+> Serial Monitor a mensagem `[BLE] Anunciando Exus-...`. Se aparecer `[ERRO] BLE
+> nao iniciou anuncio`, copie a linha completa. Atualize primeiro o firmware e
+> depois recrie/obtenha a versão atual do Exus Control; ambos precisam estar na
+> mesma versão do repositório.
 
 ### Alternativa: cliente de terminal (somente bancada/desenvolvimento)
 

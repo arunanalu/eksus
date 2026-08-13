@@ -162,16 +162,24 @@ void ble_transport_begin() {
   command->setCallbacks(new CommandCallbacks());
   emergency->setCallbacks(new EmergencyCallbacks());
   NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
-  // Um UUID de 128 bits quase ocupa o pacote de anúncio inteiro. Publicar o
-  // nome na scan response garante que clientes Windows consigam exibir
-  // "Exus-XXXXXX" mesmo quando o anúncio principal só comporta o UUID.
-  advertising->addServiceUUID(EXUS_BLE_SERVICE_UUID);
+  // O pacote de anúncio BLE tem só 31 bytes. Colocar nome (11 bytes) e UUID de
+  // 128 bits no mesmo pacote pode ocultar um deles de scanners Windows. Nome
+  // fica no anúncio principal, recebido inclusive em scan passivo; UUID fica
+  // na resposta opcional de scan.
+  NimBLEAdvertisementData advertisement;
+  advertisement.setName(name);
   NimBLEAdvertisementData scanResponse;
-  scanResponse.setName(name);
+  scanResponse.addServiceUUID(EXUS_BLE_SERVICE_UUID);
+  const bool mainDataOk = advertising->setAdvertisementData(advertisement);
+  const bool scanDataOk = advertising->setScanResponseData(scanResponse);
   advertising->enableScanResponse(true);
-  advertising->setScanResponseData(scanResponse);
-  advertising->start();
-  Serial.printf("[BLE] Anunciando %s; use 'ble pair enable' para liberar primeiro pareamento.\n", name);
+  const bool started = mainDataOk && scanDataOk && advertising->start();
+  if (started) {
+    Serial.printf("[BLE] Anunciando %s; use 'ble pair enable' para liberar primeiro pareamento.\n", name);
+  } else {
+    Serial.printf("[ERRO] BLE nao iniciou anuncio (main=%d scan=%d start=%d).\n",
+      mainDataOk, scanDataOk, started);
+  }
 }
 
 void ble_transport_enable_pairing() {
