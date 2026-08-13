@@ -485,6 +485,11 @@ arquivo `.exe` — e levá-la ao PC que ficará com o protótipo.
 > Windows como um fone de ouvido. Isso não é falha: use a busca dentro do Exus
 > Control.
 
+> Se a busca não listar nenhum `Exus-XXXXXX`, reconecte a USB e confirme no
+> Serial Monitor a mensagem `[BLE] Anunciando Exus-...`. Atualize primeiro o
+> firmware e depois recrie/obtenha a versão atual do Exus Control; ambos precisam
+> estar na mesma versão do repositório.
+
 ### Alternativa: cliente de terminal (somente bancada/desenvolvimento)
 
 O cliente abaixo é útil para diagnóstico técnico, mas o grupo deve preferir o

@@ -31,7 +31,7 @@ def _name(device, advertisement_data=None) -> str:
     return device.name or ""
 
 
-async def scan(timeout: float = 5.0) -> list[ExusDevice]:
+async def scan(timeout: float = 8.0) -> list[ExusDevice]:
     found = await BleakScanner.discover(timeout=timeout, return_adv=True)
     devices = []
     for address, (device, advertisement) in found.items():
