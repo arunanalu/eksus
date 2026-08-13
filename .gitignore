@@ -8,6 +8,10 @@ build/
 *.hex
 *.map
 
+# Python
+__pycache__/
+*.pyc
+
 # IDE
 .idea/
 .vscode/

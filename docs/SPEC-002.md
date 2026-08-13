@@ -6,7 +6,7 @@
 >
 > **Base mínima:** [SPEC-001 — firmware háptico de uma zona](SPEC-001.md) e [documentação técnica do Projeto Exus](projeto_eksus_documentacao.pdf)
 >
-> **Relacionada, mas independente:** [SPEC-003 — Exus Bridge e demo jogável](SPEC-003.md)
+> **Relacionadas, mas independentes:** [SPEC-003 — transporte Bluetooth LE e OTA](SPEC-003.md) e [SPEC-004 — Exus Bridge e demo jogável](SPEC-004.md)
 >
 > **Escopo:** firmware, topologia I²C, multiplexadores, drivers, motores, segurança e testes de múltiplas zonas. Não inclui construir a Bridge nem integrar um jogo.
 
@@ -17,8 +17,8 @@
 O controle de múltiplas zonas é uma evolução própria do sistema embarcado e deve ser desenvolvido separadamente da integração com jogos.
 
 - A **SPEC-002** transforma o firmware atual, que controla uma zona, em um controlador de várias zonas endereçáveis.
-- A **SPEC-003** transforma eventos de jogos em comandos para o firmware.
-- Nenhuma precisa esperar a outra: esta SPEC pode ser exercitada integralmente por comandos USB Serial e um simulador simples de bancada; a SPEC-003 pode operar inicialmente com a única zona da SPEC-001.
+- A **SPEC-003** adiciona BLE/OTA ao firmware; a **SPEC-004** transforma eventos de jogos em comandos para ele.
+- Nenhuma precisa esperar a outra: esta SPEC pode ser exercitada integralmente por comandos USB Serial; a SPEC-003 e a SPEC-004 podem iniciar com a única zona da SPEC-001.
 - Quando ambas estiverem prontas, a integração acontece por um contrato pequeno: descoberta de capacidades, identificadores/máscaras de zonas, comandos hápticos, ACK/NACK, status e parada.
 
 Para as oito zonas previstas no PDF, a topologia recomendada continua sendo **um TCA9548A + oito DRV2605L + oito motores LRA**, um driver por zona. O firmware também deve modelar mais de um TCA9548A, para não ficar limitado a oito ramificações, mas isso é uma capacidade de arquitetura — não uma autorização para ampliar o protótipo antes de validar energia, barramento e segurança.
@@ -37,7 +37,7 @@ Para as oito zonas previstas no PDF, a topologia recomendada continua sendo **um
 - Efeitos ROM e RTP em uma ou várias zonas.
 - Prioridade, cooldown e orçamento de energia por zona e globais.
 - Comandos Serial para testar tudo sem jogo e sem Exus Bridge.
-- Contrato de capacidades que a SPEC-003 poderá consumir depois.
+- Contrato de capacidades que as SPEC-003 e SPEC-004 poderão consumir depois.
 - Falha parcial: uma zona ausente não pode derrubar nem acionar outra.
 
 ### 2.2. Não entra nesta SPEC
@@ -45,7 +45,7 @@ Para as oito zonas previstas no PDF, a topologia recomendada continua sendo **um
 - Código da Exus Bridge.
 - UDP, adaptadores de jogos, Godot, Unity, Unreal ou telemetria comercial.
 - Interface gráfica no PC.
-- Bluetooth como transporte externo; isso ficará na SPEC-004 futura.
+- Bluetooth como transporte externo; isso pertence à SPEC-003.
 - Projeto industrial da PCB, bateria ou certificação do produto.
 - Validação clínica ou declaração de segurança médica.
 
@@ -285,7 +285,7 @@ emergency                     parada e bloqueio globais
 resume                        liberar após inspeção
 ```
 
-Contrato compacto para automação/futura SPEC-003:
+Contrato compacto para automação, SPEC-003 e SPEC-004:
 
 ```text
 H <version> <seq> <zone-mask> <pattern> <intensity> <duration> <crc>
@@ -398,30 +398,30 @@ Validar em etapas: um motor, dois motores, quatro e oito. Medir corrente de pico
 
 **Gate:** nenhuma transação atinge dois DRVs de mesmo endereço por engano.
 
-### Fase 6 — Integração opcional com a SPEC-003
+### Fase 6 — Integração opcional com a SPEC-004
 
 - Expor capabilities reais.
 - Reproduzir pela Bridge a mesma suíte antes executada por Serial.
 - Confirmar que jogo/adaptador usa IDs lógicos, não canais físicos.
-- Repetir por USB Serial. Uma futura SPEC-004 poderá reutilizar a mesma suíte para validar Bluetooth.
+- Repetir por USB Serial. A SPEC-003 poderá reutilizar a mesma suíte para validar BLE.
 
 **Observação:** esta fase não bloqueia a conclusão técnica da SPEC-002.
 
 ---
 
-## 12. Independência entre SPEC-002 e SPEC-003
+## 12. Independência entre SPEC-002 e SPEC-004
 
 | Ordem de desenvolvimento | Como testar primeiro | Ponto de encontro posterior |
 |---|---|---|
 | SPEC-002 primeiro | Serial Monitor/script envia comandos por zona e grupo | Bridge consulta capabilities e passa a enviar máscaras/IDs reais |
-| SPEC-003 primeiro | Bridge traduz jogos para a zona única da SPEC-001 | após atualizar firmware, a mesma Bridge descobre zonas e habilita espacialização |
+| SPEC-004 primeiro | Bridge traduz jogos para a zona única da SPEC-001 | após atualizar firmware, a mesma Bridge descobre zonas e habilita espacialização |
 | Em paralelo | cada trilha usa simuladores próprios | teste de contrato com fixtures e hardware quando ambos estiverem estáveis |
 
 Contrato de responsabilidade:
 
 - SPEC-002 decide **se** uma zona existe, seus limites e como ela é acionada.
-- SPEC-003 decide **qual acontecimento do jogo** deve solicitar determinada zona/padrão.
-- SPEC-003 nunca envia endereço TCA/canal; envia somente ID/máscara lógica.
+- SPEC-004 decide **qual acontecimento do jogo** deve solicitar determinada zona/padrão.
+- SPEC-004 nunca envia endereço TCA/canal; envia somente ID/máscara lógica.
 - SPEC-002 nunca precisa conhecer `damage`, `wind` ou nomes de jogos; executa comandos hápticos genéricos.
 - O firmware é a autoridade final de segurança, qualquer que seja o emissor.
 
@@ -521,7 +521,7 @@ Estimativa para uma pessoa com experiência em Arduino/C++, sem incluir PCB, com
 ### Independência
 
 - [ ] Toda a SPEC-002 pode ser demonstrada sem jogo e sem Exus Bridge.
-- [ ] A SPEC-003 consegue continuar operando com uma zona quando este firmware não está instalado.
+- [ ] A SPEC-004 consegue continuar operando com uma zona quando este firmware não está instalado.
 - [ ] A integração usa IDs/máscaras lógicas e capabilities, nunca endereço/canal físico hardcoded no PC.
 
 ---
@@ -529,7 +529,8 @@ Estimativa para uma pessoa com experiência em Arduino/C++, sem incluir PCB, com
 ## 17. Referências
 
 - [SPEC-001 — firmware háptico de uma zona](SPEC-001.md)
-- [SPEC-003 — Exus Bridge e demo jogável](SPEC-003.md)
+- [SPEC-003 — transporte Bluetooth LE e OTA](SPEC-003.md)
+- [SPEC-004 — Exus Bridge e demo jogável](SPEC-004.md)
 - [Projeto Exus — A Frequência da Imersão](projeto_eksus_documentacao.pdf)
 - [Texas Instruments — TCA9548A datasheet](https://www.ti.com/lit/ds/symlink/tca9548a.pdf)
 - [Texas Instruments — DRV2605L datasheet](https://www.ti.com/lit/ds/symlink/drv2605l.pdf)
@@ -538,7 +539,7 @@ Estimativa para uma pessoa com experiência em Arduino/C++, sem incluir PCB, com
 
 ---
 
-**Conclusão:** a evolução multi-zona pertence ao firmware e pode ser concluída por testes Serial independentemente da integração com jogos. A SPEC-003 deve enxergar zonas apenas como capacidades lógicas; isso permite desenvolver as duas trilhas em qualquer ordem e integrá-las sem misturar endereços I²C, regras de jogo ou responsabilidades de segurança.
+**Conclusão:** a evolução multi-zona pertence ao firmware e pode ser concluída por testes Serial independentemente da integração com jogos. As SPEC-003 e SPEC-004 devem enxergar zonas apenas como capacidades lógicas; isso permite desenvolver as trilhas em qualquer ordem e integrá-las sem misturar endereços I²C, regras de jogo ou responsabilidades de segurança.
 
 ---
 

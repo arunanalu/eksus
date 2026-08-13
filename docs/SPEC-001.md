@@ -20,7 +20,7 @@ Estes 6 conceitos evitam 90% da confusão mais à frente.
 
 1. **ESP32-C3** — é o "cérebro": um microcontrolador (um computadorzinho num chip). Ele roda o nosso código e dá as ordens.
 2. **DRV2605** — é o "nervo motor": um chip especializado em controlar motores de vibração. Ele recebe ordens do ESP32 e gera o sinal elétrico certo para o motor. **Não ligamos o motor direto no ESP32** — sempre passamos pelo DRV2605.
-3. **Motor LRA moeda** — é o "músculo": a pecinha redonda que de fato vibra e encosta na pele.
+3. **Motor háptico (LRA ou ERM)** — é o "músculo": a peça que de fato vibra e encosta na pele. O tipo determina a configuração correta do DRV2605L.
 4. **I2C** — é o "idioma" pelo qual o ESP32 fala com o DRV2605. Usa só 2 fios: **SDA** (dados) e **SCL** (relógio/sincronia). Cada chip no I2C tem um **endereço**; o do DRV2605 é **`0x5A`**.
 5. **Biblioteca** — código pronto que outra pessoa escreveu para facilitar nossa vida. Vamos usar a **`Adafruit_DRV2605`**, que já sabe conversar com o chip; nós só chamamos funções simples.
 6. **Frequência de um LRA (ponto MAIS importante de entender):**
@@ -37,8 +37,8 @@ Estes 6 conceitos evitam 90% da confusão mais à frente.
 **ENTRA no MVP (esta etapa):**
 - 1× ESP32-C3
 - 1× DRV2605 (ligado **direto** no I2C do ESP32, sem multiplexador)
-- 1× motor LRA moeda
-- Código que: inicializa tudo, calibra o motor, e faz o motor vibrar em padrões de pulso com frequência percebida e intensidade controláveis.
+- 1× motor háptico compatível, com tipo identificado (LRA ou ERM)
+- Código que: inicializa tudo, calibra somente LRA quando aplicável, e faz o motor vibrar em padrões de pulso com frequência percebida e intensidade controláveis.
 - Comandos simples pela **USB Serial** (digitar comandos no computador para testar).
 
 **NÃO entra agora** (ver Seção 10 — Evolução):
@@ -57,14 +57,14 @@ Estes 6 conceitos evitam 90% da confusão mais à frente.
 |------|----------|------------|
 | Placa ESP32-C3 (dev board) | Cérebro / roda o código | Qualquer dev board ESP32-C3 com USB serve |
 | Módulo DRV2605 / DRV2605L (breakout) | Controla o motor | O da **Adafruit** já vem com resistores de I2C e facilita muito |
-| Motor LRA moeda | Vibra | **LRA**, não ERM. Anote a **tensão e a frequência de ressonância** do datasheet do seu motor |
+| Motor háptico | Vibra | Identificar **LRA** ou **ERM**. Para LRA, anotar tensão e ressonância; para ERM, tensão nominal e corrente. |
 | Cabo USB | Programar e alimentar | Deve ser cabo de **dados**, não só de carga |
 | Protoboard + jumpers | Ligações de teste | Só para a fase de teste (ver precaução abaixo) |
 | (Opcional) Multímetro | Medir tensão/corrente | Muito útil para depurar |
 
 > ⚠️ **Precaução — DRV2605 x DRV2605L:** o link de referência da `espp` fala em "DRV2605"; o módulo mais comum no mercado (Adafruit) é o "DRV2605**L**". Para o nosso uso em **modo LRA** eles se comportam igual e a mesma biblioteca atende. Apenas confirme no seu módulo qual você tem e que ele suporta **LRA**.
 
-> ⚠️ **Precaução — motor LRA correto:** existem motores **ERM** (massa excêntrica) e **LRA** (ressonante). O código vai configurar o chip em **modo LRA**. Se o motor for ERM, ele não vai funcionar bem. Confirme no datasheet/descrição que é **LRA**.
+> ⚠️ **Precaução — tipo de motor:** existem motores **ERM** (massa excêntrica) e **LRA** (ressonante). O DRV2605L deve ser configurado para o tipo real; não aplicar calibração LRA a um ERM. No hardware atual, as moedas das zonas 0/1 são ERM e o bastão da zona 2 é LRA; veja o adendo da [SPEC-002](SPEC-002.md).
 
 ---
 
@@ -224,7 +224,7 @@ O código está pronto para esta fase quando:
 
 > Registrado a pedido do time: o MVP é simples de propósito, mas o caminho de crescimento já fica documentado aqui.
 >
-> A implementação detalhada de multiplexadores e zonas foi separada na [SPEC-002](SPEC-002.md). A Exus Bridge e a integração com jogos estão na [SPEC-003](SPEC-003.md). As duas evoluções são independentes e podem ser desenvolvidas em qualquer ordem.
+> A implementação detalhada de multiplexadores e zonas foi separada na [SPEC-002](SPEC-002.md). O BLE e OTA estão na [SPEC-003](SPEC-003.md); a Exus Bridge e a integração com jogos, na [SPEC-004](SPEC-004.md). As evoluções podem ser desenvolvidas em qualquer ordem, respeitando suas dependências.
 
 1. **Adicionar o multiplexador TCA9548A.**
    - Por quê: vários DRV2605 têm o **mesmo endereço** (`0x5A`) e brigariam no mesmo barramento. O TCA9548A coloca cada driver num **canal** separado.
@@ -240,9 +240,9 @@ O código está pronto para esta fase quando:
    - Permitir disparos **simultâneos/sequenciados** entre zonas com baixa latência (filas de comandos + temporizadores, sem `delay()`).
    - Suportar **perfis por usuário** e a **tabela háptica** (evento → zona, padrão, duração, intensidade) salva em JSON/CSV/struct.
 
-4. **Comunicação externa:** USB Serial e UDP/integração jogável são detalhados na SPEC-003. **BLE** fica reservado para uma SPEC-004 futura. O protocolo deve manter **ACK**, validação de limites e *rate limit*.
+4. **Comunicação externa:** Bluetooth LE e OTA são detalhados na SPEC-003; USB Serial e UDP/integração jogável, na SPEC-004. O protocolo deve manter **ACK**, validação de limites e *rate limit*.
 
-5. **Integração com jogo:** Godot + Exus Bridge em Python são as escolhas confirmadas para o MVP da SPEC-003; antes do jogo, um simulador testa a cadeia sem depender da engine.
+5. **Integração com jogo:** Godot + Exus Bridge em Python são as escolhas confirmadas para o MVP da SPEC-004; antes do jogo, um simulador testa a cadeia sem depender da engine.
 
 6. **Hardware usável:** sair da protoboard para **placa soldada/PCB**, conectores travados, fixação mecânica que transmita a vibração sem peças soltas, fonte dimensionada para vários motores com GND comum.
 
@@ -258,7 +258,8 @@ O código está pronto para esta fase quando:
 - espp — DRV2605 (referência ESP-IDF/C++, enviada pelo time): https://esp-cpp.github.io/espp/haptics/drv2605.html
 - Documentação interna: *Projeto Exus — A Frequência da Imersão* (PDF do projeto).
 - [SPEC-002 — evolução do firmware para múltiplas zonas](SPEC-002.md)
-- [SPEC-003 — Exus Bridge e demo jogável](SPEC-003.md)
+- [SPEC-003 — transporte Bluetooth LE e OTA](SPEC-003.md)
+- [SPEC-004 — Exus Bridge e demo jogável](SPEC-004.md)
 
 ---
 

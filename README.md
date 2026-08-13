@@ -2,13 +2,13 @@
 
 Firmware para **ESP32-C3 + TCA9548A + DRV2605L + motores LRA ou ERM**. Funciona tanto
 com uma zona ligada diretamente quanto com uma quantidade descoberta dinamicamente
-de multiplexadores e atuadores, controlados pela porta USB Serial.
+de multiplexadores e atuadores, controlados pela USB Serial ou por Bluetooth LE.
 
 > Para entender *por que* as decisões foram tomadas desta forma, leia a
 > [`SPEC-001`](docs/SPEC-001.md). A evolução do firmware para múltiplas zonas
-> está na [`SPEC-002`](docs/SPEC-002.md), e a Exus Bridge e a integração com
-> jogos por USB estão na [`SPEC-003`](docs/SPEC-003.md). Bluetooth foi reservado
-> para uma SPEC-004 futura.
+> está na [`SPEC-002`](docs/SPEC-002.md). O transporte Bluetooth LE e OTA está
+> na [`SPEC-003`](docs/SPEC-003.md), e a Exus Bridge e a integração com jogos
+> estão na [`SPEC-004`](docs/SPEC-004.md).
 
 ---
 
@@ -22,6 +22,7 @@ de multiplexadores e atuadores, controlados pela porta USB Serial.
 6. [Sequência de testes](#6-sequência-de-testes)
 7. [Referência de comandos](#7-referência-de-comandos)
 8. [Solução de problemas](#8-solução-de-problemas)
+9. [Bluetooth: primeira conexão](#9-bluetooth-primeira-conexão)
 
 ---
 
@@ -99,7 +100,14 @@ Dentro da Arduino IDE:
 2. Pesquise `Adafruit DRV2605` e instale a biblioteca **Adafruit DRV2605 Library**.
    - A dependência `Adafruit BusIO` será instalada automaticamente junto.
 
-### 3.4 Selecionar a placa e a porta
+### 3.4 Biblioteca Bluetooth
+
+1. Abra **Sketch → Include Library → Manage Libraries**.
+2. Pesquise `NimBLE-Arduino` e instale a biblioteca de mesmo nome, versão 2.x.
+
+Ela é necessária para compilar a versão do firmware que anuncia Bluetooth LE.
+
+### 3.5 Selecionar a placa e a porta
 
 1. **Tools → Board → esp32 → ESP32C3 Dev Module**
 2. **Tools → Port** → selecione a porta COM que apareceu ao conectar o ESP32
@@ -417,6 +425,71 @@ Causa: queda de tensão na alimentação USB.
 
 ---
 
+## 9. Bluetooth: primeira conexão
+
+O ESP32-C3 já possui Bluetooth LE. Não conecte outro módulo Bluetooth nem altere
+os fios I2C para usar esta função. Bluetooth troca apenas o cabo de **dados**:
+ele não alimenta o protótipo.
+
+### Preparar o PC que ficará com o protótipo
+
+O PC precisa de Windows 10/11 com Bluetooth LE ativo (ou adaptador USB BLE),
+Python 3.10+ e as bibliotecas Arduino já descritas, incluindo **NimBLE-Arduino**.
+Não é necessário instalar um programa Bluetooth adicional no Windows.
+
+Depois de baixar o repositório, abrir PowerShell na pasta do projeto e executar:
+
+```powershell
+python -m pip install -r tools\requirements.txt
+```
+
+Essa instalação também é necessária no PC do protótipo: ela instala o cliente
+`bleak` que procura e envia comandos BLE. Não basta instalar NimBLE-Arduino,
+pois a biblioteca Arduino fica no ESP32 e o cliente Python roda no PC.
+
+### Conectar pela primeira vez
+
+1. Mantenha o ESP32 conectado ao PC por **cabo USB de dados**. Faça upload do
+   firmware normalmente pela Arduino IDE; esta primeira gravação é por USB.
+2. Abra o Serial Monitor em **115200 baud**. Execute `zones`, `Q` e `emergency`;
+   confirme que todos os motores estão parados antes de seguir.
+3. No Serial Monitor, envie `ble pair enable`. Isto libera o primeiro
+   pareamento por 60 s e exige que o protótipo esteja na mesa, fora do corpo.
+4. Em outro PowerShell, execute:
+
+   ```powershell
+   python tools\exus_ble.py scan
+   ```
+
+   Anote o trecho mostrado depois de `Exus-` (por exemplo, `A1B2C3`).
+5. Leia as informações e faça o primeiro comando de baixa intensidade:
+
+   ```powershell
+   python tools\exus_ble.py connect --id A1B2C3 info
+   python tools\exus_ble.py connect --id A1B2C3 command "pulse 0 15 500 10"
+   python tools\exus_ble.py connect --id A1B2C3 command emergency
+   ```
+
+   Substitua `A1B2C3` pelo identificador real. Aceite a confirmação do Windows,
+   se ela aparecer. Não dependa do menu de Bluetooth do Windows: um dispositivo
+   BLE GATT pode não aparecer ali como fone de ouvido e ainda funcionar.
+6. Desligue o Bluetooth do PC ou feche a conexão. Todos os motores devem parar.
+   Repita o teste de `emergency` antes de usar a conexão sem USB.
+
+### Usar bateria depois do teste
+
+Depois de o BLE funcionar com USB, o cabo pode ser removido e o protótipo pode
+ser alimentado por uma bateria/fonte **já validada**. Não conecte USB e bateria
+ao mesmo tempo sem circuito de gerenciamento de energia. Nunca ligue uma bateria
+crua no pino `3V3`; use a entrada/regulador e a proteção próprios da placa.
+
+A fonte precisa suportar a corrente dos motores, manter GND comum com ESP32/TCA/
+DRV2605 e não causar reinício durante vibração. O primeiro teste com bateria é
+sempre na mesa. Para atualizar firmware, apagar pareamentos (`ble bonds clear`)
+ou recuperar uma falha, reconecte a USB.
+
+---
+
 ## Estrutura do firmware
 
 ```
@@ -430,12 +503,17 @@ firmware/
 ├── DriverHaptico.h/.cpp  ← acesso de baixo nível ao DRV2605
 ├── GeradorEnvelope.h/.cpp  ← compatibilidade da API de uma zona
 ├── Seguranca.h/.cpp    ← limites zonais/globais e emergência
-└── Comandos.h/.cpp     ← interface USB Serial
+├── Comandos.h/.cpp     ← parser comum para USB Serial e BLE
+├── BleProtocol.h       ← UUIDs e versão do protocolo BLE
+└── BleTransport.h/.cpp ← GATT, pareamento, watchdog e parada por desconexão
 ```
+
+O cliente de bancada fica em `tools/exus_ble.py`; suas dependências estão em
+`tools/requirements.txt`.
 
 Para entender a lógica completa e os próximos passos de evolução, consulte:
 
 - [`docs/SPEC-001.md`](docs/SPEC-001.md) — firmware, hardware e segurança do MVP;
 - [`docs/SPEC-002.md`](docs/SPEC-002.md) — evolução independente do firmware para multiplexadores e múltiplas zonas;
-- [`docs/SPEC-003.md`](docs/SPEC-003.md) — Exus Bridge, integração com jogos e demo jogável.
-- `docs/SPEC-004.md` (futura) — transporte Bluetooth/BLE e operação sem cabo de dados.
+- [`docs/SPEC-003.md`](docs/SPEC-003.md) — transporte Bluetooth LE, comandos e OTA;
+- [`docs/SPEC-004.md`](docs/SPEC-004.md) — Exus Bridge, integração com jogos e demo jogável.
