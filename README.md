@@ -1,6 +1,6 @@
 # Eksus Firmware — Guia de Início 
 
-Firmware para **ESP32-C3 + TCA9548A + DRV2605L + motores LRA ou ERM**. Funciona tanto
+Firmware para **ESP32-C3 + TCA9548A + DRV2605L + motores LRA e ERM**. Funciona tanto
 com uma zona ligada diretamente quanto com uma quantidade descoberta dinamicamente
 de multiplexadores e atuadores, controlados pela USB Serial ou por Bluetooth LE.
 
