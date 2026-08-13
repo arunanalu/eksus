@@ -5,6 +5,7 @@
 #include "MultiZoneScheduler.h"
 #include "Seguranca.h"
 #include "ZoneDriver.h"
+#include "ZoneMap.h"
 #include <Arduino.h>
 
 #if EXUS_BLE_ENABLED
@@ -73,7 +74,8 @@ static void enqueueBytes(const std::string& value) {
       s_fragmentStartedAt = 0;
     } else if (!s_lineOverflow && s_lineLength < sizeof(s_line) - 1) {
       if (!s_lineLength) s_fragmentStartedAt = millis();
-      s_line[s_lineLength++] = c;
+      s_line[s_lineLength] = c;
+      ++s_lineLength;
     } else {
       s_lineOverflow = true;
     }
@@ -159,7 +161,6 @@ void ble_transport_begin() {
   info->setValue(deviceInfo);
   command->setCallbacks(new CommandCallbacks());
   emergency->setCallbacks(new EmergencyCallbacks());
-  service->start();
   NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
   advertising->addServiceUUID(EXUS_BLE_SERVICE_UUID);
   advertising->start();
