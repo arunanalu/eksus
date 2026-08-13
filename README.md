@@ -8,7 +8,8 @@ de multiplexadores e atuadores, controlados pela USB Serial ou por Bluetooth LE.
 > [`SPEC-001`](docs/SPEC-001.md). A evolução do firmware para múltiplas zonas
 > está na [`SPEC-002`](docs/SPEC-002.md). O transporte Bluetooth LE e OTA está
 > na [`SPEC-003`](docs/SPEC-003.md), e a Exus Bridge e a integração com jogos
-> estão na [`SPEC-004`](docs/SPEC-004.md).
+> estão na [`SPEC-004`](docs/SPEC-004.md). O aplicativo visual de controle BLE
+> está planejado na [`SPEC-003.5`](docs/SPEC-003.5.md).
 
 ---
 
@@ -511,9 +512,16 @@ firmware/
 O cliente de bancada fica em `tools/exus_ble.py`; suas dependências estão em
 `tools/requirements.txt`.
 
+O aplicativo visual está em `tools/exus_control.py`. Para desenvolvimento,
+execute `python tools\exus_control.py`; para gerar uma versão distribuível para
+Windows, execute `powershell -ExecutionPolicy Bypass -File tools\build_windows.ps1`.
+O arquivo a entregar é `tools\dist\Exus-Control\Exus-Control.exe`; o usuário
+final abre esse programa sem instalar Python nem usar terminal.
+
 Para entender a lógica completa e os próximos passos de evolução, consulte:
 
 - [`docs/SPEC-001.md`](docs/SPEC-001.md) — firmware, hardware e segurança do MVP;
 - [`docs/SPEC-002.md`](docs/SPEC-002.md) — evolução independente do firmware para multiplexadores e múltiplas zonas;
 - [`docs/SPEC-003.md`](docs/SPEC-003.md) — transporte Bluetooth LE, comandos e OTA;
+- [`docs/SPEC-003.5.md`](docs/SPEC-003.5.md) — aplicativo visual Windows para controle BLE;
 - [`docs/SPEC-004.md`](docs/SPEC-004.md) — Exus Bridge, integração com jogos e demo jogável.

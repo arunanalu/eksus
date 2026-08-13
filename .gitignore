@@ -11,6 +11,9 @@ build/
 # Python
 __pycache__/
 *.pyc
+tools/build/
+tools/dist/
+tools/*.spec
 
 # IDE
 .idea/
