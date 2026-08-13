@@ -483,6 +483,29 @@ arquivo `.exe` — e levá-la ao PC que ficará com o protótipo.
     a perda de conexão e todos os motores devem parar. Só então o BLE está
     aprovado para o próximo teste.
 
+### Reconectar depois de reiniciar ou usar bateria
+
+O bond criado no primeiro pareamento fica salvo no PC e no ESP32. Portanto,
+depois de desligar USB, ligar a bateria ou reiniciar a placa, basta abrir o
+Exus Control, procurar `Exus-XXXXXX` e clicar em **Conectar**. **Não** execute
+`ble pair enable` novamente: a janela é apenas para o primeiro PC e sempre
+fecha no boot. O firmware reativa a criptografia do bond persistente antes de
+aceitar comandos.
+
+Se o aplicativo encontrar o Exus, mas a conexão falhar ou mostrar
+`Unreachable`, faça a recuperação uma única vez com USB conectado:
+
+1. Feche Exus Control, cliente de terminal e qualquer scanner BLE.
+2. No Windows, remova/esqueça `Exus-XXXXXX` em **Configurações > Bluetooth e
+   dispositivos**, se ele estiver listado.
+3. No Serial Monitor, envie `ble bonds clear`, reinicie a placa e envie
+   `ble pair enable`.
+4. Dentro de 60 s, conecte pelo Exus Control e conclua o pareamento.
+
+`ble pair enable` só abre quando não há conexão nem bond salvo. Essa regra
+impede que outro PC substitua silenciosamente o computador autorizado. Para
+trocar de PC, execute a recuperação acima de propósito.
+
 > Um dispositivo BLE pode não aparecer no menu **Configurações > Bluetooth** do
 > Windows como um fone de ouvido. Isso não é falha: use a busca dentro do Exus
 > Control.
@@ -530,8 +553,11 @@ crua no pino `3V3`; use a entrada/regulador e a proteção próprios da placa.
 
 A fonte precisa suportar a corrente dos motores, manter GND comum com ESP32/TCA/
 DRV2605 e não causar reinício durante vibração. O primeiro teste com bateria é
-sempre na mesa. Para atualizar firmware, apagar pareamentos (`ble bonds clear`)
-ou recuperar uma falha, reconecte a USB.
+sempre na mesa. Após o primeiro pareamento bem-sucedido, reinicie a placa pela
+bateria e confirme que o Exus Control reconecta sem `ble pair enable`; execute
+um pulso mínimo, **PARAR TUDO**, emergência e uma desconexão deliberada. Para
+atualizar firmware, apagar pareamentos (`ble bonds clear`) ou recuperar uma
+falha, reconecte a USB.
 
 ---
 

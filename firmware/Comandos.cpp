@@ -125,7 +125,12 @@ static bool executeInternal(const char* line) {
   if (!strcmp(command, "emergency") || !strcmp(command, "e")) { seguranca_emergencia_ativar(); scheduler_stop_all(); out().println(F("[EMERGENCIA] Todas as zonas paradas.")); return true; }
   if (!strcmp(command, "resume") || !strcmp(command, "r")) { scheduler_stop_all(); if (scheduler_active_count()) { out().println(F("[EMERGENCIA] Falha ao confirmar parada; bloqueio mantido.")); return false; } seguranca_emergencia_liberar(); out().println(F("[OK] Emergencia liberada apos inspecao.")); return true; }
   if (!strcmp(command, "ble")) {
-    if (!strcmp(args, "pair enable")) { ble_transport_enable_pairing(); out().println(F("[OK] Pareamento BLE liberado por 60 s.")); return true; }
+    if (!strcmp(args, "pair enable")) {
+      const bool ok = ble_transport_enable_pairing();
+      out().println(ok ? F("[OK] Pareamento BLE liberado por 60 s.") :
+        F("[ERRO] Desconecte o PC e apague os bonds antes de liberar novo pareamento."));
+      return ok;
+    }
     if (!strcmp(args, "bonds clear")) { const bool ok = ble_transport_clear_bonds(); out().println(ok ? F("[OK] Bonds BLE apagados.") : F("[ERRO] Nao foi possivel apagar bonds BLE.")); return ok; }
     if (!strcmp(args, "status")) { ble_transport_print_status(out()); return true; }
     out().println(F("[ERRO] Uso: ble status | ble pair enable | ble bonds clear")); return false;

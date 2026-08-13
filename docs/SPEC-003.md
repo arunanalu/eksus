@@ -185,16 +185,22 @@ prazo definido ou fora da gramática é descartada e gera NACK quando possível.
 
 - Anunciar somente quando não houver conexão ativa.
 - Ao conectar, iniciar com todas as zonas paradas; o PC consulta `Q` antes de
-  qualquer comando háptico.
-- Ao desconectar, parar o scheduler, limpar fragmentos parciais e voltar a
-  anunciar.
+  qualquer comando háptico. Quando o PC já possuir bond persistente, o
+  periférico deve iniciar a recriptografia logo após `onConnect`; não usar o
+  estado ainda não autenticado desse callback para revogar o bond.
+- Ao desconectar, parar o scheduler, descartar fragmentos e comandos BLE já
+  enfileirados e voltar a anunciar. Uma emergência também descarta a fila,
+  para que um `pulse` recebido antes dela nunca volte a ligar um motor.
 - Se o link ficar sem comando/heartbeat válido por 2 s durante saída contínua,
   parar tudo. Implementar esse *watchdog* antes de liberar comando contínuo BLE.
 - Aceitar um único central no MVP.
 - O primeiro pareamento requer presença local: `ble pair enable` pela Serial
   abre uma janela máxima de 60 s. Fora dela, novas tentativas são recusadas.
 - Usar criptografia e *bonding* persistente em NVS; no MVP, manter apenas um PC
-  autorizado. `ble bonds clear` existe exclusivamente na Serial.
+  autorizado. A decisão de aceitar o primeiro pareamento é congelada ao abrir
+  o link, para a expiração da janela durante a negociação não gerar falha
+  espúria. `ble bonds clear` existe exclusivamente na Serial e, ao trocar PC,
+  requer também remover o dispositivo salvo no Windows.
 - Exigir link criptografado para `command`, `emergency` e OTA. A emergência
   local/Serial continua possível mesmo sem BLE.
 
@@ -310,6 +316,19 @@ caminho USB.
   PC, comandos do cliente, ordem USB→BLE→bateria, cuidados de alimentação e
   recuperação por USB. Atualizar também o índice do README.
 
+### Oportunidades após a validação da reconexão
+
+- **Botão físico de pareamento:** elimina a dependência da Serial para
+  autorizar uma troca controlada de PC, sem deixar o dispositivo aberto.
+- **Telemetria de energia:** registrar motivo de reset/brownout e causa de
+  desconexão BLE para distinguir falha de bond de queda da bateria durante a
+  negociação do link.
+- **Teste de regressão em hardware:** automatizar o ciclo parear → desligar
+  USB → iniciar pela bateria → reconectar → desconectar, incluindo a garantia
+  de que não há comando pendente após emergência.
+- **OTA seguro:** iniciar esta fase somente depois desse ciclo estar estável;
+  recuperação USB e validação de imagem continuam obrigatórias.
+
 ---
 
 ## 8. Critérios de aceite
@@ -319,6 +338,9 @@ caminho USB.
 - [ ] BLE e Serial usam o mesmo roteador e obedecem os mesmos limites locais.
 - [ ] Desconexão, *timeout* ou pacote inválido param todos os atuadores.
 - [ ] Emergência funciona por BLE e por USB; USB permanece independente do BLE.
+- [ ] Após um primeiro pareamento, reiniciar pela bateria permite reconectar o
+  mesmo PC sem reabrir a janela de pareamento.
+- [ ] Desconexão ou emergência não executa comando BLE que já estava na fila.
 - [ ] O roteiro de primeira conexão funciona com USB conectado, sem depender do
   painel Bluetooth do Windows.
 - [ ] O README principal contém o passo a passo leigo da primeira conexão e da
