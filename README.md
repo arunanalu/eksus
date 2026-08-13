@@ -488,10 +488,11 @@ arquivo `.exe` — e levá-la ao PC que ficará com o protótipo.
 > Control.
 
 > Se a busca não listar nenhum `Exus-XXXXXX`, reconecte a USB e confirme no
-> Serial Monitor a mensagem `[BLE] Anunciando Exus-...`. Se aparecer `[ERRO] BLE
-> nao iniciou anuncio`, copie a linha completa. Atualize primeiro o firmware e
-> depois recrie/obtenha a versão atual do Exus Control; ambos precisam estar na
-> mesma versão do repositório.
+> Serial Monitor a mensagem `[BLE] Anunciando Exus-...` e envie `ble status`.
+> O resultado deve conter `advertising=YES`. Se aparecer `[ERRO] BLE nao iniciou
+> anuncio` ou `advertising=NO`, copie a linha completa. Atualize primeiro o
+> firmware e depois recrie/obtenha a versão atual do Exus Control; ambos precisam
+> estar na mesma versão do repositório.
 
 ### Alternativa: cliente de terminal (somente bancada/desenvolvimento)
 

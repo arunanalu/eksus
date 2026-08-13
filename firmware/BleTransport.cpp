@@ -12,8 +12,10 @@
 #include <NimBLEDevice.h>
 
 static NimBLEServer* s_server = nullptr;
+static NimBLEAdvertising* s_advertising = nullptr;
 static NimBLECharacteristic* s_response = nullptr;
 static NimBLECharacteristic* s_status = nullptr;
+static char s_deviceName[20] = {0};
 static char s_line[BLE_COMMAND_BUFFER_SIZE] = {0};
 static char s_pending[BLE_COMMAND_BUFFER_SIZE] = {0};
 static volatile uint8_t s_lineLength = 0;
@@ -138,10 +140,9 @@ static bool extractSequence(char* line, unsigned long& sequence, char*& command)
 }
 
 void ble_transport_begin() {
-  char name[20];
   const uint32_t id = (uint32_t)(ESP.getEfuseMac() & 0xFFFFFFULL);
-  snprintf(name, sizeof(name), "Exus-%06lX", (unsigned long)id);
-  NimBLEDevice::init(name);
+  snprintf(s_deviceName, sizeof(s_deviceName), "Exus-%06lX", (unsigned long)id);
+  NimBLEDevice::init(s_deviceName);
   NimBLEDevice::setSecurityAuth(true, false, true); // bond + link cifrado + Secure Connections
   NimBLEDevice::setMTU(185);
 
@@ -157,28 +158,33 @@ void ble_transport_begin() {
     NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC);
   char deviceInfo[180];
   snprintf(deviceInfo, sizeof(deviceInfo), "protocol=%u firmware=ble-v1 device=%s zones=%u",
-    EXUS_BLE_PROTOCOL_VERSION, name, zone_map_count());
+    EXUS_BLE_PROTOCOL_VERSION, s_deviceName, zone_map_count());
   info->setValue(deviceInfo);
   command->setCallbacks(new CommandCallbacks());
   emergency->setCallbacks(new EmergencyCallbacks());
-  NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
+  s_advertising = NimBLEDevice::getAdvertising();
   // O pacote de anúncio BLE tem só 31 bytes. Colocar nome (11 bytes) e UUID de
   // 128 bits no mesmo pacote pode ocultar um deles de scanners Windows. Nome
   // fica no anúncio principal, recebido inclusive em scan passivo; UUID fica
   // na resposta opcional de scan.
   NimBLEAdvertisementData advertisement;
-  advertisement.setName(name);
+  const bool flagsOk = advertisement.setFlags(BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP);
+  const bool nameOk = advertisement.setName(s_deviceName);
   NimBLEAdvertisementData scanResponse;
-  scanResponse.addServiceUUID(EXUS_BLE_SERVICE_UUID);
-  const bool mainDataOk = advertising->setAdvertisementData(advertisement);
-  const bool scanDataOk = advertising->setScanResponseData(scanResponse);
-  advertising->enableScanResponse(true);
-  const bool started = mainDataOk && scanDataOk && advertising->start();
+  const bool serviceOk = scanResponse.addServiceUUID(EXUS_BLE_SERVICE_UUID);
+  s_advertising->reset();
+  const bool connectableOk = s_advertising->setConnectableMode(BLE_GAP_CONN_MODE_UND);
+  const bool discoverableOk = s_advertising->setDiscoverableMode(BLE_GAP_DISC_MODE_GEN);
+  const bool mainDataOk = s_advertising->setAdvertisementData(advertisement);
+  const bool scanDataOk = s_advertising->setScanResponseData(scanResponse);
+  s_advertising->enableScanResponse(true);
+  const bool started = flagsOk && nameOk && serviceOk && connectableOk && discoverableOk &&
+    mainDataOk && scanDataOk && s_advertising->start();
   if (started) {
-    Serial.printf("[BLE] Anunciando %s; use 'ble pair enable' para liberar primeiro pareamento.\n", name);
+    Serial.printf("[BLE] Anunciando %s; use 'ble pair enable' para liberar primeiro pareamento.\n", s_deviceName);
   } else {
-    Serial.printf("[ERRO] BLE nao iniciou anuncio (main=%d scan=%d start=%d).\n",
-      mainDataOk, scanDataOk, started);
+    Serial.printf("[ERRO] BLE nao iniciou anuncio (flags=%d name=%d service=%d connect=%d discover=%d main=%d scan=%d start=%d).\n",
+      flagsOk, nameOk, serviceOk, connectableOk, discoverableOk, mainDataOk, scanDataOk, started);
   }
 }
 
@@ -192,6 +198,13 @@ bool ble_transport_clear_bonds() {
 }
 
 bool ble_transport_is_connected() { return s_connected; }
+
+void ble_transport_print_status(Print& output) {
+  output.printf("[BLE] device=%s connected=%s advertising=%s bonds=%d pairing_window=%s\n",
+    s_deviceName[0] ? s_deviceName : "unavailable", s_connected ? "YES" : "NO",
+    s_advertising && s_advertising->isAdvertising() ? "YES" : "NO",
+    NimBLEDevice::getNumBonds(), pairingEnabled() ? "OPEN" : "CLOSED");
+}
 
 void ble_transport_process() {
   if (s_stopRequested) {
@@ -226,4 +239,5 @@ void ble_transport_process() {}
 void ble_transport_enable_pairing() {}
 bool ble_transport_clear_bonds() { return false; }
 bool ble_transport_is_connected() { return false; }
+void ble_transport_print_status(Print& output) { output.println(F("[BLE] Desabilitado em Config.h.")); }
 #endif

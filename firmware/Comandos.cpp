@@ -15,7 +15,7 @@ static void help() {
   out().println(F("zones | scan all | status [zone] | Q [seq]"));
   out().println(F("pulse <zone> <intens%> <ms> [Hz] | effect <zone> <1-123>"));
   out().println(F("group <mask> <pulse|effect> ... | stop <zone|mux:N|all>"));
-  out().println(F("emergency | resume | ble pair enable | ble bonds clear"));
+  out().println(F("emergency | resume | ble status | ble pair enable | ble bonds clear"));
 }
 
 static void capabilities(unsigned long seq) {
@@ -127,7 +127,8 @@ static bool executeInternal(const char* line) {
   if (!strcmp(command, "ble")) {
     if (!strcmp(args, "pair enable")) { ble_transport_enable_pairing(); out().println(F("[OK] Pareamento BLE liberado por 60 s.")); return true; }
     if (!strcmp(args, "bonds clear")) { const bool ok = ble_transport_clear_bonds(); out().println(ok ? F("[OK] Bonds BLE apagados.") : F("[ERRO] Nao foi possivel apagar bonds BLE.")); return ok; }
-    out().println(F("[ERRO] Uso: ble pair enable | ble bonds clear")); return false;
+    if (!strcmp(args, "status")) { ble_transport_print_status(out()); return true; }
+    out().println(F("[ERRO] Uso: ble status | ble pair enable | ble bonds clear")); return false;
   }
   if (!strcmp(command, "stop") || !strcmp(command, "s")) return commandStop(args);
   if (!strcmp(command, "status")) return commandStatus(args);
