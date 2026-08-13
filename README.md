@@ -434,9 +434,62 @@ ele não alimenta o protótipo.
 
 ### Preparar o PC que ficará com o protótipo
 
-O PC precisa de Windows 10/11 com Bluetooth LE ativo (ou adaptador USB BLE),
-Python 3.10+ e as bibliotecas Arduino já descritas, incluindo **NimBLE-Arduino**.
-Não é necessário instalar um programa Bluetooth adicional no Windows.
+O PC precisa de Windows 10/11 com Bluetooth LE ativo (ou adaptador USB BLE) e
+das bibliotecas Arduino já descritas, incluindo **NimBLE-Arduino**. Não é
+necessário instalar um programa Bluetooth adicional no Windows.
+
+Para o uso normal, entregue a pasta `Exus-Control` gerada pelo projeto e peça
+para a pessoa abrir `Exus-Control.exe`. Nesse caso, **não é necessário instalar
+Python, `bleak` ou usar terminal**. A instalação de NimBLE-Arduino é diferente:
+ela serve para compilar o firmware do ESP32 e só é necessária no computador que
+fará upload pela Arduino IDE.
+
+Caso ainda não exista a pasta do aplicativo, alguém do time de desenvolvimento
+deve gerá-la uma vez, no repositório:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\build_windows.ps1
+```
+
+Depois, copiar ou zipar toda a pasta `tools\dist\Exus-Control` — não apenas o
+arquivo `.exe` — e levá-la ao PC que ficará com o protótipo.
+
+### Primeira conexão pelo aplicativo Exus Control — recomendada
+
+1. Mantenha o ESP32 conectado ao PC por **cabo USB de dados**. Faça upload do
+   firmware normalmente pela Arduino IDE; esta primeira gravação é por USB.
+2. Abra o Serial Monitor em **115200 baud**. Execute `zones`, `Q` e `emergency`;
+   confirme que todos os motores estão parados antes de seguir.
+3. No Serial Monitor, envie `ble pair enable`. Isso libera o primeiro
+   pareamento por 60 s. Deixe o protótipo na mesa, fora do corpo.
+4. Abra `Exus-Control.exe` por duplo clique. Se o Windows pedir permissão para
+   Bluetooth, permita.
+5. Clique em **Procurar protótipos**. Selecione o item `Exus-XXXXXX` encontrado
+   e clique em **Conectar**. Aceite a confirmação de pareamento do Windows, se
+   ela aparecer.
+6. A tela deve mudar para **CONECTADO — pronto para teste** e mostrar as zonas
+   prontas. Se aparecer “nenhuma zona pronta”, pare e revise a montagem/Serial.
+7. Marque **uma** zona. Deixe os valores iniciais seguros (15%, 500 ms e 10 Hz)
+   e clique em **Testar zonas marcadas**. Confirme a vibração na mesa.
+8. Clique em **PARAR TUDO** e depois em **EMERGÊNCIA — PARAR AGORA**. Em ambos
+   os casos, todos os motores precisam parar imediatamente.
+9. Para testar duas ou mais zonas juntas, marque mais de uma caixa e clique em
+   **Testar zonas marcadas**. O aplicativo envia uma única solicitação de grupo;
+   o firmware mantém a decisão final de segurança e pode limitar/recusar o
+   pedido conforme o orçamento de energia.
+10. Clique em **Desconectar** ou desligue o Bluetooth do PC. A tela deve indicar
+    a perda de conexão e todos os motores devem parar. Só então o BLE está
+    aprovado para o próximo teste.
+
+> Um dispositivo BLE pode não aparecer no menu **Configurações > Bluetooth** do
+> Windows como um fone de ouvido. Isso não é falha: use a busca dentro do Exus
+> Control.
+
+### Alternativa: cliente de terminal (somente bancada/desenvolvimento)
+
+O cliente abaixo é útil para diagnóstico técnico, mas o grupo deve preferir o
+aplicativo visual acima. Para esta alternativa, Python 3.10+ precisa estar
+instalado e as dependências precisam ser adicionadas uma vez:
 
 Depois de baixar o repositório, abrir PowerShell na pasta do projeto e executar:
 
@@ -444,38 +497,20 @@ Depois de baixar o repositório, abrir PowerShell na pasta do projeto e executar
 python -m pip install -r tools\requirements.txt
 ```
 
-Essa instalação também é necessária no PC do protótipo: ela instala o cliente
-`bleak` que procura e envia comandos BLE. Não basta instalar NimBLE-Arduino,
-pois a biblioteca Arduino fica no ESP32 e o cliente Python roda no PC.
+Isso instala o cliente `bleak` que procura e envia comandos BLE. Não basta
+instalar NimBLE-Arduino, pois a biblioteca Arduino fica no ESP32 e o cliente
+Python roda no PC.
 
-### Conectar pela primeira vez
+Depois, com o pareamento já liberado pela Serial, execute:
 
-1. Mantenha o ESP32 conectado ao PC por **cabo USB de dados**. Faça upload do
-   firmware normalmente pela Arduino IDE; esta primeira gravação é por USB.
-2. Abra o Serial Monitor em **115200 baud**. Execute `zones`, `Q` e `emergency`;
-   confirme que todos os motores estão parados antes de seguir.
-3. No Serial Monitor, envie `ble pair enable`. Isto libera o primeiro
-   pareamento por 60 s e exige que o protótipo esteja na mesa, fora do corpo.
-4. Em outro PowerShell, execute:
+```powershell
+python tools\exus_ble.py scan
+python tools\exus_ble.py connect --id A1B2C3 info
+python tools\exus_ble.py connect --id A1B2C3 command "pulse 0 15 500 10"
+python tools\exus_ble.py connect --id A1B2C3 command emergency
+```
 
-   ```powershell
-   python tools\exus_ble.py scan
-   ```
-
-   Anote o trecho mostrado depois de `Exus-` (por exemplo, `A1B2C3`).
-5. Leia as informações e faça o primeiro comando de baixa intensidade:
-
-   ```powershell
-   python tools\exus_ble.py connect --id A1B2C3 info
-   python tools\exus_ble.py connect --id A1B2C3 command "pulse 0 15 500 10"
-   python tools\exus_ble.py connect --id A1B2C3 command emergency
-   ```
-
-   Substitua `A1B2C3` pelo identificador real. Aceite a confirmação do Windows,
-   se ela aparecer. Não dependa do menu de Bluetooth do Windows: um dispositivo
-   BLE GATT pode não aparecer ali como fone de ouvido e ainda funcionar.
-6. Desligue o Bluetooth do PC ou feche a conexão. Todos os motores devem parar.
-   Repita o teste de `emergency` antes de usar a conexão sem USB.
+Substitua `A1B2C3` pelo identificador mostrado pelo comando `scan`.
 
 ### Usar bateria depois do teste
 
