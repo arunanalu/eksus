@@ -7,6 +7,9 @@
 >
 > **Objetivo:** substituir os comandos de terminal por um aplicativo visual para
 > Windows que qualquer integrante do grupo possa abrir e usar.
+>
+> **Evolução decidida:** a [SPEC-004](SPEC-004.md) amplia este mesmo aplicativo
+> para receber eventos de jogos. Não será criado um segundo executável de ponte.
 
 ---
 

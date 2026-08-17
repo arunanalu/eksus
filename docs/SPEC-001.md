@@ -224,7 +224,7 @@ O código está pronto para esta fase quando:
 
 > Registrado a pedido do time: o MVP é simples de propósito, mas o caminho de crescimento já fica documentado aqui.
 >
-> A implementação detalhada de multiplexadores e zonas foi separada na [SPEC-002](SPEC-002.md). O BLE e OTA estão na [SPEC-003](SPEC-003.md); a Exus Bridge e a integração com jogos, na [SPEC-004](SPEC-004.md). As evoluções podem ser desenvolvidas em qualquer ordem, respeitando suas dependências.
+> A implementação detalhada de multiplexadores e zonas foi separada na [SPEC-002](SPEC-002.md). O BLE e OTA estão na [SPEC-003](SPEC-003.md); a evolução do Exus Control para ponte de jogos, na [SPEC-004](SPEC-004.md); e a demo Godot, na [SPEC-005](SPEC-005.md). As evoluções podem ser desenvolvidas em paralelo, respeitando seus contratos.
 
 1. **Adicionar o multiplexador TCA9548A.**
    - Por quê: vários DRV2605 têm o **mesmo endereço** (`0x5A`) e brigariam no mesmo barramento. O TCA9548A coloca cada driver num **canal** separado.
@@ -240,9 +240,9 @@ O código está pronto para esta fase quando:
    - Permitir disparos **simultâneos/sequenciados** entre zonas com baixa latência (filas de comandos + temporizadores, sem `delay()`).
    - Suportar **perfis por usuário** e a **tabela háptica** (evento → zona, padrão, duração, intensidade) salva em JSON/CSV/struct.
 
-4. **Comunicação externa:** Bluetooth LE e OTA são detalhados na SPEC-003; USB Serial e UDP/integração jogável, na SPEC-004. O protocolo deve manter **ACK**, validação de limites e *rate limit*.
+4. **Comunicação externa:** Bluetooth LE e OTA são detalhados na SPEC-003; a ponte UDP local do Exus Control, na SPEC-004. O protocolo deve manter **ACK**, validação de limites e *rate limit*.
 
-5. **Integração com jogo:** Godot + Exus Bridge em Python são as escolhas confirmadas para o MVP da SPEC-004; antes do jogo, um simulador testa a cadeia sem depender da engine.
+5. **Integração com jogo:** o Exus Control em Python recebe eventos da demo Godot. A ponte e seu simulador pertencem à SPEC-004; a demo, à SPEC-005.
 
 6. **Hardware usável:** sair da protoboard para **placa soldada/PCB**, conectores travados, fixação mecânica que transmita a vibração sem peças soltas, fonte dimensionada para vários motores com GND comum.
 
@@ -259,7 +259,8 @@ O código está pronto para esta fase quando:
 - Documentação interna: *Projeto Exus — A Frequência da Imersão* (PDF do projeto).
 - [SPEC-002 — evolução do firmware para múltiplas zonas](SPEC-002.md)
 - [SPEC-003 — transporte Bluetooth LE e OTA](SPEC-003.md)
-- [SPEC-004 — Exus Bridge e demo jogável](SPEC-004.md)
+- [SPEC-004 — Exus Control como ponte de jogos](SPEC-004.md)
+- [SPEC-005 — demo Godot](SPEC-005.md)
 
 ---
 

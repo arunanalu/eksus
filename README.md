@@ -7,9 +7,10 @@ de multiplexadores e atuadores, controlados pela USB Serial ou por Bluetooth LE.
 > Para entender *por que* as decisões foram tomadas desta forma, leia a
 > [`SPEC-001`](docs/SPEC-001.md). A evolução do firmware para múltiplas zonas
 > está na [`SPEC-002`](docs/SPEC-002.md). O transporte Bluetooth LE e OTA está
-> na [`SPEC-003`](docs/SPEC-003.md), e a Exus Bridge e a integração com jogos
-> estão na [`SPEC-004`](docs/SPEC-004.md). O aplicativo visual de controle BLE
-> está planejado na [`SPEC-003.5`](docs/SPEC-003.5.md).
+> na [`SPEC-003`](docs/SPEC-003.md). O aplicativo visual de controle BLE está
+> na [`SPEC-003.5`](docs/SPEC-003.5.md) e sua evolução para ponte de jogos está
+> na [`SPEC-004`](docs/SPEC-004.md). A demo Godot está na
+> [`SPEC-005`](docs/SPEC-005.md).
 
 ---
 
@@ -594,4 +595,5 @@ Para entender a lógica completa e os próximos passos de evolução, consulte:
 - [`docs/SPEC-002.md`](docs/SPEC-002.md) — evolução independente do firmware para multiplexadores e múltiplas zonas;
 - [`docs/SPEC-003.md`](docs/SPEC-003.md) — transporte Bluetooth LE, comandos e OTA;
 - [`docs/SPEC-003.5.md`](docs/SPEC-003.5.md) — aplicativo visual Windows para controle BLE;
-- [`docs/SPEC-004.md`](docs/SPEC-004.md) — Exus Bridge, integração com jogos e demo jogável.
+- [`docs/SPEC-004.md`](docs/SPEC-004.md) — evolução do Exus Control para ponte de jogos.
+- [`docs/SPEC-005.md`](docs/SPEC-005.md) — demo Godot desenvolvida e testada primeiro sem hardware.

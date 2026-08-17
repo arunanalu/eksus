@@ -3,8 +3,9 @@
 > **Status:** próxima etapa de implementação.
 >
 > **Depende de:** [SPEC-001](SPEC-001.md) e [SPEC-002](SPEC-002.md), já
-> implementadas e validadas por USB Serial. A integração com jogos e a Exus
-> Bridge pertencem à [SPEC-004](SPEC-004.md).
+> implementadas e validadas por USB Serial. A evolução do Exus Control para
+> receber jogos pertence à [SPEC-004](SPEC-004.md); a demo Godot, à
+> [SPEC-005](SPEC-005.md).
 >
 > **Objetivo:** permitir que um PC controle o ESP32-C3 por Bluetooth Low Energy
 > (BLE), sem alterar a lógica háptica nem reduzir as proteções existentes.
@@ -126,7 +127,7 @@ duração, *cooldown*, orçamento global ou bloqueio de emergência da SPEC-002.
 ## 4. Arquitetura e responsabilidades
 
 ```text
-PC: tools/exus_ble.py (agora) / Exus Bridge (SPEC-004)
+PC: Exus Control (bancada BLE + ponte local da SPEC-004)
                     │ BLE GATT criptografado
 ESP32-C3: BleTransport → CommandRouter → Segurança → Scheduler → ZoneDriver
                                                         │
@@ -143,7 +144,7 @@ limites, scheduler ou lógica de emergência.
 
 O contrato externo BLE usa somente IDs lógicos de zona e máscaras de zona. O
 comando físico `mux` pode permanecer como diagnóstico USB, mas não deve ser
-oferecido ao futuro Bridge nem usado por jogos.
+oferecido à ponte do Exus Control nem usado por jogos.
 
 ---
 
@@ -354,8 +355,8 @@ caminho USB.
 ## 9. Relação com a SPEC-004
 
 Esta SPEC entrega o transporte de dispositivo e o cliente de bancada. A
-SPEC-004 consome o mesmo contrato lógico por `BleTransport` ou
-`SerialTransport`, sem conhecer TCA, canal físico, ERM/LRA, bateria ou OTA.
+SPEC-004 evolui o mesmo Exus Control para consumir eventos de jogos, adaptando o
+cliente BLE existente sem conhecer TCA, canal físico, ERM/LRA, bateria ou OTA.
 
 O aplicativo visual para uso do grupo, que reutiliza o cliente/protocolo BLE sem
 substituir o firmware, é detalhado na [SPEC-003.5](SPEC-003.5.md).
@@ -366,4 +367,5 @@ substituir o firmware, é detalhado na [SPEC-003.5](SPEC-003.5.md).
 - [Bluetooth API — Espressif](https://docs.espressif.com/projects/esp-idf/en/stable/esp32c3/api-reference/bluetooth/index.html)
 - [OTA e partições — Espressif](https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/api-reference/system/ota.html)
 - [SPEC-002 — firmware multi-zona](SPEC-002.md)
-- [SPEC-004 — Exus Bridge e demo jogável](SPEC-004.md)
+- [SPEC-004 — Exus Control como ponte de jogos](SPEC-004.md)
+- [SPEC-005 — demo Godot](SPEC-005.md)

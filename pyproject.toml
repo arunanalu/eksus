@@ -1,0 +1,3 @@
+[tool.pytest.ini_options]
+testpaths = ["exus_control/tests"]
+addopts = "-q"
