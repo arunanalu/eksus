@@ -26,6 +26,7 @@ de multiplexadores e atuadores, controlados pela USB Serial ou por Bluetooth LE.
 7. [Referência de comandos](#7-referência-de-comandos)
 8. [Solução de problemas](#8-solução-de-problemas)
 9. [Bluetooth: primeira conexão](#9-bluetooth-primeira-conexão)
+10. [Exus Control com jogos](#10-exus-control-com-jogos)
 
 ---
 
@@ -561,6 +562,54 @@ bateria e confirme que o Exus Control reconecta sem `ble pair enable`; execute
 um pulso mínimo, **PARAR TUDO**, emergência e uma desconexão deliberada. Para
 atualizar firmware, apagar pareamentos (`ble bonds clear`) ou recuperar uma
 falha, reconecte a USB.
+
+---
+
+## 10. Exus Control com jogos
+
+O jogo nunca acessa o Bluetooth ou o firmware diretamente. Ele envia eventos UDP
+locais para `127.0.0.1:4242`; o **Exus Control** valida o evento, aplica o perfil
+háptico do jogo e só então envia o comando BLE ao protótipo. Inicie a ponte em
+**Iniciar ponte** antes de abrir o jogo.
+
+### Modo simulado — sem protótipo
+
+O Control pode ficar aberto sem ESP32 conectado. Nesse caso ele recebe, valida e
+mostra os comandos que seriam enviados, mas não emite Bluetooth nem aciona motor.
+Para a Boat Demo, o simulador contém as zonas 0, 1 e 2, portanto permite conferir
+no diagnóstico a propagação direcional antes de vestir ou alimentar o protótipo.
+
+Exemplo: `stream 0x7 0:3,1:1,2:1 600 14 20`. `0x7` é a máscara das três zonas
+(`0`, `1` e `2`) e permanece fixa de propósito: cada atualização informa os
+níveis de todas elas, inclusive para reduzir uma zona que vibrava antes. A direção
+está nos valores depois de `:`; não na máscara.
+
+### Saída física e parada segura
+
+Para vibração real, conecte o Exus pelo BLE, confirme as três zonas prontas,
+inicie a ponte e marque **Permitir saída para o protótipo**. O jogo também começa
+com `output_requested=false`; essa segunda autorização explícita evita que abrir
+um `.exe` acione o corpo por acidente. Na Boat Demo de desenvolvimento, ela é
+alterada no Inspector/bridge para `real_output_requested`; `F7` a desliga de
+novo. O Control não envia nada enquanto uma das duas autorizações estiver
+desligada.
+
+O stream de vento expira em 600 ms se o jogo parar de atualizar. Fechar o jogo,
+desligar a saída, perder a conexão BLE, usar **PARAR TUDO** ou acionar
+**EMERGÊNCIA** também interrompe a vibração.
+
+### Perfil da Boat Demo
+
+O perfil `boat-demo/v1` usa somente o primeiro multiplexador nas zonas lógicas:
+
+- `0`: vibrador moeda, lado esquerdo do rosto;
+- `1`: vibrador moeda, lado direito do rosto;
+- `2`: vibrador bastão, testa.
+
+Os ganhos e limites por zona estão em
+`game/boat-demo/config/haptics/boat-demo.v1.json` e na cópia carregada pelo
+Control, `exus_control/profiles/boat-demo.v1.json`. Mantenha os dois arquivos
+idênticos e ajuste uma zona de cada vez, sempre dentro dos limites do firmware.
 
 ---
 
