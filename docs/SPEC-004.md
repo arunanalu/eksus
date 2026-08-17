@@ -56,10 +56,10 @@ porta COM, TCA9548A ou DRV2605L diretamente.
 | Firmware multi-zona | `firmware/ZoneMap.*`, `ZoneDriver.*`, `MultiZoneScheduler.*` e segurança | implementado; validação elétrica/mecânica continua pendente |
 | BLE no ESP32-C3 | `firmware/BleProtocol.h` e `BleTransport.*` | implementado; equipe está ajustando estabilidade e reconexão |
 | Roteador comum | `comandos_executar()` em `firmware/Comandos.*` | Serial e BLE chegam à mesma lógica e aos mesmos limites |
-| Cliente BLE reutilizável | `tools/exus_ble_client.py` | implementado com scan, conexão, ACK/NACK, status e emergência |
-| Cliente de bancada | `tools/exus_ble.py` | implementado |
-| Aplicativo visual | `tools/exus_control.py` | MVP implementado; pendente de validação física |
-| Executável Windows | `tools/build_windows.ps1` | empacota `Exus-Control.exe` com PyInstaller |
+| Cliente BLE reutilizável | `exus_control/ble_client.py` | implementado com scan, conexão, ACK/NACK, status e emergência |
+| Cliente de bancada | `exus_control/cli.py` | implementado (`python -m exus_control.cli`) |
+| Aplicativo visual | `exus_control/app.py` | MVP implementado; pendente de validação física |
+| Executável Windows | `exus_control/build_windows.ps1` | empacota `Exus-Control.exe` com PyInstaller |
 | Integração com jogo | inexistente | objeto desta SPEC e da SPEC-005 |
 | Testes automatizados no PC | inexistentes no repositório | primeira lacuna a corrigir |
 
@@ -132,11 +132,11 @@ execução futura.
 
 ## 4. Arquitetura alvo do Exus Control
 
-O código atual em `tools/` deverá migrar gradualmente para um pacote, sem quebrar
-a CLI nem o executável durante a transição:
+O código foi consolidado em `exus_control/`, que contém a CLI, a interface, a
+ponte, os testes e o script de empacotamento:
 
 ```text
-tools/
+exus_control/
 ├── exus_ble.py                   # CLI de bancada preservada
 ├── exus_control.py               # entrada do aplicativo preservada
 ├── exus_ble_client.py            # compatibilidade durante a migração

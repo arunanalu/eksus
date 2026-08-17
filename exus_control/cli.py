@@ -1,4 +1,4 @@
-"""Cliente de bancada preservado como `tools/exus_ble.py`."""
+"""Cliente de bancada do Exus Control."""
 
 from __future__ import annotations
 

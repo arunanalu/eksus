@@ -11,9 +11,10 @@ build/
 # Python
 __pycache__/
 *.pyc
-tools/build/
-tools/dist/
-tools/*.spec
+tools/
+exus_control/build/
+exus_control/dist/
+exus_control/*.spec
 
 # IDE
 .idea/

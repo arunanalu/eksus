@@ -87,8 +87,18 @@ class ControlWorker:
 
 
 class ExusControl(ttk.Frame):
+    BACKGROUND = "#0b1120"
+    SURFACE = "#111827"
+    SURFACE_ALT = "#1f2937"
+    BORDER = "#334155"
+    TEXT = "#e5e7eb"
+    MUTED = "#94a3b8"
+    ACCENT = "#2563eb"
+    ACCENT_HOVER = "#3b82f6"
+
     def __init__(self, root: tk.Tk):
-        super().__init__(root, padding=14); self.root = root; self.worker = ControlWorker()
+        self.root = root; self._configure_theme()
+        super().__init__(root, padding=14, style="App.TFrame"); self.worker = ControlWorker()
         self.devices: list[ExusDevice] = []; self.zone_vars: dict[int, tk.BooleanVar] = {}; self.events = queue.Queue()
         self.connection_active = False; self.device_choice = tk.StringVar(); self.connection_text = tk.StringVar(value="NÃO CONECTADO")
         self.info_text = tk.StringVar(value="Modo simulado disponível sem protótipo.")
@@ -96,12 +106,33 @@ class ExusControl(ttk.Frame):
         self.bridge_text, self.bridge_detail, self.output_enabled = tk.StringVar(value="PARADA"), tk.StringVar(value="127.0.0.1:4242"), tk.BooleanVar(value=False)
         self._build(); self._set_controls(False); self.root.after(100, self._poll_events); self.root.after(1000, self._health_check)
 
+    def _configure_theme(self):
+        self.root.configure(background=self.BACKGROUND)
+        style = ttk.Style(self.root)
+        style.theme_use("clam")
+        style.configure(".", background=self.BACKGROUND, foreground=self.TEXT, font=("Segoe UI", 10))
+        style.configure("App.TFrame", background=self.BACKGROUND)
+        style.configure("TFrame", background=self.SURFACE)
+        style.configure("TLabelframe", background=self.SURFACE, bordercolor=self.BORDER, lightcolor=self.BORDER, darkcolor=self.BORDER)
+        style.configure("TLabelframe.Label", background=self.SURFACE, foreground=self.TEXT, font=("Segoe UI Semibold", 10))
+        style.configure("TLabel", background=self.SURFACE, foreground=self.TEXT)
+        style.configure("TButton", background=self.SURFACE_ALT, foreground=self.TEXT, bordercolor=self.BORDER, lightcolor=self.BORDER, darkcolor=self.BORDER, padding=(10, 6))
+        style.map("TButton", background=[("active", "#334155"), ("disabled", "#172033")], foreground=[("disabled", "#64748b")])
+        style.configure("Accent.TButton", background=self.ACCENT, foreground="#ffffff", bordercolor=self.ACCENT, padding=(10, 6))
+        style.map("Accent.TButton", background=[("active", self.ACCENT_HOVER), ("disabled", "#1e3a5f")], foreground=[("disabled", "#94a3b8")])
+        style.configure("TCheckbutton", background=self.SURFACE, foreground=self.TEXT, indicatorcolor=self.SURFACE_ALT, padding=3)
+        style.map("TCheckbutton", background=[("active", self.SURFACE)], foreground=[("disabled", "#64748b")])
+        style.configure("TCombobox", fieldbackground=self.SURFACE_ALT, background=self.SURFACE_ALT, foreground=self.TEXT, bordercolor=self.BORDER, arrowcolor=self.TEXT, padding=5)
+        style.map("TCombobox", fieldbackground=[("readonly", self.SURFACE_ALT)], foreground=[("readonly", self.TEXT)], selectbackground=[("readonly", self.ACCENT)], selectforeground=[("readonly", "#ffffff")])
+        style.configure("TSpinbox", fieldbackground=self.SURFACE_ALT, background=self.SURFACE_ALT, foreground=self.TEXT, bordercolor=self.BORDER, arrowcolor=self.TEXT, padding=4)
+        style.map("TSpinbox", fieldbackground=[("readonly", self.SURFACE_ALT)], foreground=[("disabled", "#64748b")])
+
     def _build(self):
         self.root.title("Exus Control"); self.root.minsize(760, 700); self.pack(fill="both", expand=True); self.columnconfigure(0, weight=1)
         connection = ttk.LabelFrame(self, text="1. Conexão", padding=10); connection.grid(row=0, column=0, sticky="ew"); connection.columnconfigure(1, weight=1)
-        self.search_button = ttk.Button(connection, text="Procurar protótipos", command=self.search); self.search_button.grid(row=0,column=0,padx=(0,8))
+        self.search_button = ttk.Button(connection, text="Procurar protótipos", command=self.search, style="Accent.TButton"); self.search_button.grid(row=0,column=0,padx=(0,8))
         self.device_list = ttk.Combobox(connection,textvariable=self.device_choice,state="readonly"); self.device_list.grid(row=0,column=1,sticky="ew",padx=(0,8))
-        self.connect_button = ttk.Button(connection,text="Conectar",command=self.connect); self.connect_button.grid(row=0,column=2,padx=(0,8))
+        self.connect_button = ttk.Button(connection,text="Conectar",command=self.connect, style="Accent.TButton"); self.connect_button.grid(row=0,column=2,padx=(0,8))
         self.disconnect_button = ttk.Button(connection,text="Desconectar",command=self.disconnect); self.disconnect_button.grid(row=0,column=3)
         ttk.Label(connection,textvariable=self.connection_text,font=("Segoe UI",10,"bold")).grid(row=1,column=0,columnspan=4,sticky="w",pady=(8,0))
         status = ttk.LabelFrame(self,text="2. Estado do protótipo",padding=10); status.grid(row=1,column=0,sticky="ew",pady=(10,0)); ttk.Label(status,textvariable=self.info_text,wraplength=700).pack(anchor="w")
@@ -109,17 +140,17 @@ class ExusControl(ttk.Frame):
         test=ttk.LabelFrame(self,text="4. Teste seguro",padding=10); test.grid(row=3,column=0,sticky="ew",pady=(10,0))
         for col,label,var,maxval in ((0,"Intensidade (%)",self.intensity,50),(2,"Duração (ms)",self.duration,2000),(4,"Ritmo (Hz)",self.frequency,100)):
             ttk.Label(test,text=label).grid(row=0,column=col,sticky="w"); ttk.Spinbox(test,from_=1,to=maxval,textvariable=var,width=7).grid(row=0,column=col+1,sticky="w",padx=(4,14))
-        self.test_button=ttk.Button(test,text="Testar zonas marcadas",command=self.test_zones); self.test_button.grid(row=1,column=0,columnspan=3,sticky="ew",pady=(8,0))
+        self.test_button=ttk.Button(test,text="Testar zonas marcadas",command=self.test_zones, style="Accent.TButton"); self.test_button.grid(row=1,column=0,columnspan=3,sticky="ew",pady=(8,0))
         self.stop_button=ttk.Button(test,text="PARAR TUDO",command=self.stop_all); self.stop_button.grid(row=1,column=3,columnspan=3,sticky="ew",padx=(8,0),pady=(8,0))
         bridge=ttk.LabelFrame(self,text="5. Ponte de jogo",padding=10); bridge.grid(row=4,column=0,sticky="ew",pady=(10,0)); bridge.columnconfigure(1,weight=1)
         ttk.Label(bridge,textvariable=self.bridge_text,font=("Segoe UI",10,"bold")).grid(row=0,column=0,sticky="w"); ttk.Label(bridge,textvariable=self.bridge_detail).grid(row=0,column=1,sticky="w")
-        self.bridge_button=ttk.Button(bridge,text="Iniciar ponte",command=self.toggle_bridge); self.bridge_button.grid(row=1,column=0,sticky="ew",pady=(8,0))
+        self.bridge_button=ttk.Button(bridge,text="Iniciar ponte",command=self.toggle_bridge, style="Accent.TButton"); self.bridge_button.grid(row=1,column=0,sticky="ew",pady=(8,0))
         self.output_check=ttk.Checkbutton(bridge,text="Permitir saída para o protótipo",variable=self.output_enabled,command=self.toggle_output); self.output_check.grid(row=1,column=1,sticky="w",padx=(12,0),pady=(8,0))
         ttk.Button(bridge,text="Gerar dano simulado",command=lambda:self._future(self.worker.submit(self.worker.manual_event()),"manual")).grid(row=2,column=0,sticky="ew",pady=(8,0))
         ttk.Button(bridge,text="Exportar log da sessão",command=self.export_log).grid(row=2,column=1,sticky="w",padx=(12,0),pady=(8,0))
-        emergency=tk.Button(self,text="EMERGÊNCIA — PARAR AGORA",bg="#b91c1c",fg="white",font=("Segoe UI",13,"bold"),command=self.emergency); emergency.grid(row=5,column=0,sticky="ew",pady=(12,8)); self.emergency_button=emergency
+        emergency=tk.Button(self,text="EMERGÊNCIA — PARAR AGORA",bg="#b91c1c",fg="white",activebackground="#ef4444",activeforeground="white",relief="flat",bd=0,highlightthickness=0,font=("Segoe UI",13,"bold"),command=self.emergency); emergency.grid(row=5,column=0,sticky="ew",pady=(12,8)); self.emergency_button=emergency
         self.resume_button=ttk.Button(self,text="Liberar emergência após inspeção",command=self.resume); self.resume_button.grid(row=6,column=0,sticky="ew")
-        log_frame=ttk.LabelFrame(self,text="Diagnóstico",padding=6); log_frame.grid(row=7,column=0,sticky="nsew",pady=(10,0)); self.rowconfigure(7,weight=1); self.log=tk.Text(log_frame,height=9,state="disabled",wrap="word"); self.log.pack(fill="both",expand=True)
+        log_frame=ttk.LabelFrame(self,text="Diagnóstico",padding=6); log_frame.grid(row=7,column=0,sticky="nsew",pady=(10,0)); self.rowconfigure(7,weight=1); self.log=tk.Text(log_frame,height=9,state="disabled",wrap="word",background="#060b16",foreground=self.TEXT,insertbackground=self.TEXT,selectbackground=self.ACCENT,selectforeground="#ffffff",relief="flat",bd=0,highlightthickness=1,highlightbackground=self.BORDER,highlightcolor=self.ACCENT); self.log.pack(fill="both",expand=True)
 
     def _set_controls(self, enabled):
         state="normal" if enabled else "disabled"
