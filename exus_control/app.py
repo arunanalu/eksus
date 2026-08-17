@@ -65,8 +65,13 @@ class ControlWorker:
         if not connected:
             await self.bridge_session.on_disconnect()
         return connected
-    async def start_bridge(self): await self.bridge.start(); return self.bridge_snapshot()
-    async def stop_bridge(self): await self.bridge.stop(); return self.bridge_snapshot()
+    async def start_bridge(self):
+        await self.bridge.start()
+        return await self.bridge_snapshot()
+
+    async def stop_bridge(self):
+        await self.bridge.stop()
+        return await self.bridge_snapshot()
     async def set_output(self, enabled: bool): return await self.bridge_session.set_hardware_output(enabled)
     async def bridge_snapshot(self):
         stats = self.bridge.stats
