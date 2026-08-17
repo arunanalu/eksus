@@ -1,0 +1,1 @@
+A 7 {"zones_ready":[0,2,7],"max_group_size":8}

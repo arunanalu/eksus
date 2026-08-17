@@ -3,10 +3,13 @@
 > **Status:** MVP implementado; pendente de validação no PC com o protótipo.
 >
 > **Depende de:** [SPEC-003](SPEC-003.md), que entrega o firmware BLE e o
-> cliente de bancada `tools/exus_ble.py`.
+> cliente de bancada `python -m exus_control.cli`.
 >
 > **Objetivo:** substituir os comandos de terminal por um aplicativo visual para
 > Windows que qualquer integrante do grupo possa abrir e usar.
+>
+> **Evolução decidida:** a [SPEC-004](SPEC-004.md) amplia este mesmo aplicativo
+> para receber eventos de jogos. Não será criado um segundo executável de ponte.
 
 ---
 
@@ -96,7 +99,7 @@ global, emergência, desconexão e watchdog.
 Antes de criar a tela, separar o cliente de terminal em duas camadas:
 
 ```text
-tools/
+exus_control/
 ├── exus_ble_client.py  ← biblioteca assíncrona reutilizável: scan, connect,
 │                          pair, info, command, emergency e callbacks
 ├── exus_ble.py         ← CLI atual; passa a chamar a biblioteca
@@ -115,7 +118,7 @@ evita congelar a janela durante scan, pareamento, reconexão ou timeout.
 
 ### Fase 0 — validar a base BLE
 
-- Usar `tools/exus_ble.py` para completar scan, pareamento, `Q`, pulso mínimo,
+- Usar `python -m exus_control.cli` para completar scan, pareamento, `Q`, pulso mínimo,
   emergência e teste de desconexão no protótipo físico.
 - Registrar nome anunciado, comportamento do diálogo de pareamento Windows e
   respostas reais ACK/NACK.

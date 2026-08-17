@@ -7,9 +7,10 @@ de multiplexadores e atuadores, controlados pela USB Serial ou por Bluetooth LE.
 > Para entender *por que* as decisões foram tomadas desta forma, leia a
 > [`SPEC-001`](docs/SPEC-001.md). A evolução do firmware para múltiplas zonas
 > está na [`SPEC-002`](docs/SPEC-002.md). O transporte Bluetooth LE e OTA está
-> na [`SPEC-003`](docs/SPEC-003.md), e a Exus Bridge e a integração com jogos
-> estão na [`SPEC-004`](docs/SPEC-004.md). O aplicativo visual de controle BLE
-> está planejado na [`SPEC-003.5`](docs/SPEC-003.5.md).
+> na [`SPEC-003`](docs/SPEC-003.md). O aplicativo visual de controle BLE está
+> na [`SPEC-003.5`](docs/SPEC-003.5.md) e sua evolução para ponte de jogos está
+> na [`SPEC-004`](docs/SPEC-004.md). A demo Godot está na
+> [`SPEC-005`](docs/SPEC-005.md).
 
 ---
 
@@ -450,10 +451,10 @@ Caso ainda não exista a pasta do aplicativo, alguém do time de desenvolvimento
 deve gerá-la uma vez, no repositório:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools\build_windows.ps1
+powershell -ExecutionPolicy Bypass -File exus_control\build_windows.ps1
 ```
 
-Depois, copiar ou zipar toda a pasta `tools\dist\Exus-Control` — não apenas o
+Depois, copiar ou zipar toda a pasta `exus_control\dist\Exus-Control` — não apenas o
 arquivo `.exe` — e levá-la ao PC que ficará com o protótipo.
 
 ### Primeira conexão pelo aplicativo Exus Control — recomendada
@@ -526,7 +527,7 @@ instalado e as dependências precisam ser adicionadas uma vez:
 Depois de baixar o repositório, abrir PowerShell na pasta do projeto e executar:
 
 ```powershell
-python -m pip install -r tools\requirements.txt
+python -m pip install -r exus_control\requirements.txt
 ```
 
 Isso instala o cliente `bleak` que procura e envia comandos BLE. Não basta
@@ -536,10 +537,10 @@ Python roda no PC.
 Depois, com o pareamento já liberado pela Serial, execute:
 
 ```powershell
-python tools\exus_ble.py scan
-python tools\exus_ble.py connect --id A1B2C3 info
-python tools\exus_ble.py connect --id A1B2C3 command "pulse 0 15 500 10"
-python tools\exus_ble.py connect --id A1B2C3 command emergency
+python -m exus_control.cli scan
+python -m exus_control.cli connect --id A1B2C3 info
+python -m exus_control.cli connect --id A1B2C3 command "pulse 0 15 500 10"
+python -m exus_control.cli connect --id A1B2C3 command emergency
 ```
 
 Substitua `A1B2C3` pelo identificador mostrado pelo comando `scan`.
@@ -579,14 +580,15 @@ firmware/
 └── BleTransport.h/.cpp ← GATT, pareamento, watchdog e parada por desconexão
 ```
 
-O cliente de bancada fica em `tools/exus_ble.py`; suas dependências estão em
-`tools/requirements.txt`.
+O cliente de bancada faz parte de `exus_control/`; execute
+`python -m exus_control.cli`. Suas dependências estão em
+`exus_control/requirements.txt`.
 
-O aplicativo visual está em `tools/exus_control.py`. Para desenvolvimento,
-execute `python tools\exus_control.py`; para gerar uma versão distribuível para
-Windows, execute `powershell -ExecutionPolicy Bypass -File tools\build_windows.ps1`.
-O arquivo a entregar é `tools\dist\Exus-Control\Exus-Control.exe`; o usuário
-final abre esse programa sem instalar Python nem usar terminal.
+O aplicativo visual está em `exus_control/`; para desenvolvimento, execute
+`python exus_control_app.py`. Para gerar uma versão distribuível para Windows,
+execute `powershell -ExecutionPolicy Bypass -File exus_control\build_windows.ps1`.
+O arquivo a entregar é `exus_control\dist\Exus-Control\Exus-Control.exe`; o
+usuário final abre esse programa sem instalar Python nem usar terminal.
 
 Para entender a lógica completa e os próximos passos de evolução, consulte:
 
@@ -594,4 +596,5 @@ Para entender a lógica completa e os próximos passos de evolução, consulte:
 - [`docs/SPEC-002.md`](docs/SPEC-002.md) — evolução independente do firmware para multiplexadores e múltiplas zonas;
 - [`docs/SPEC-003.md`](docs/SPEC-003.md) — transporte Bluetooth LE, comandos e OTA;
 - [`docs/SPEC-003.5.md`](docs/SPEC-003.5.md) — aplicativo visual Windows para controle BLE;
-- [`docs/SPEC-004.md`](docs/SPEC-004.md) — Exus Bridge, integração com jogos e demo jogável.
+- [`docs/SPEC-004.md`](docs/SPEC-004.md) — evolução do Exus Control para ponte de jogos.
+- [`docs/SPEC-005.md`](docs/SPEC-005.md) — demo Godot desenvolvida e testada primeiro sem hardware.

@@ -6,9 +6,9 @@
 >
 > **Base mínima:** [SPEC-001 — firmware háptico de uma zona](SPEC-001.md) e [documentação técnica do Projeto Exus](projeto_eksus_documentacao.pdf)
 >
-> **Relacionadas, mas independentes:** [SPEC-003 — transporte Bluetooth LE e OTA](SPEC-003.md) e [SPEC-004 — Exus Bridge e demo jogável](SPEC-004.md)
+> **Relacionadas, mas independentes:** [SPEC-003 — transporte Bluetooth LE e OTA](SPEC-003.md), [SPEC-004 — Exus Control como ponte](SPEC-004.md) e [SPEC-005 — demo Godot](SPEC-005.md)
 >
-> **Escopo:** firmware, topologia I²C, multiplexadores, drivers, motores, segurança e testes de múltiplas zonas. Não inclui construir a Bridge nem integrar um jogo.
+> **Escopo:** firmware, topologia I²C, multiplexadores, drivers, motores, segurança e testes de múltiplas zonas. Não inclui evoluir o Exus Control nem construir a demo.
 
 ---
 
@@ -36,13 +36,13 @@ Para as oito zonas previstas no PDF, a topologia recomendada continua sendo **um
 - Scheduler não bloqueante com estado independente por zona.
 - Efeitos ROM e RTP em uma ou várias zonas.
 - Prioridade, cooldown e orçamento de energia por zona e globais.
-- Comandos Serial para testar tudo sem jogo e sem Exus Bridge.
+- Comandos Serial para testar tudo sem jogo e sem Exus Control.
 - Contrato de capacidades que as SPEC-003 e SPEC-004 poderão consumir depois.
 - Falha parcial: uma zona ausente não pode derrubar nem acionar outra.
 
 ### 2.2. Não entra nesta SPEC
 
-- Código da Exus Bridge.
+- Código do Exus Control ou da demo Godot.
 - UDP, adaptadores de jogos, Godot, Unity, Unreal ou telemetria comercial.
 - Interface gráfica no PC.
 - Bluetooth como transporte externo; isso pertence à SPEC-003.
@@ -269,7 +269,7 @@ O scheduler percorre apenas zonas ativas, seleciona o canal e escreve a amplitud
 
 ## 9. Comandos de bancada e contrato externo
 
-Esta SPEC deve ser testável no Serial Monitor ou por um pequeno script, sem Exus Bridge.
+Esta SPEC deve ser testável no Serial Monitor ou por um pequeno script, sem Exus Control.
 
 Comandos humanos sugeridos:
 
@@ -520,7 +520,7 @@ Estimativa para uma pessoa com experiência em Arduino/C++, sem incluir PCB, com
 
 ### Independência
 
-- [ ] Toda a SPEC-002 pode ser demonstrada sem jogo e sem Exus Bridge.
+- [ ] Toda a SPEC-002 pode ser demonstrada sem jogo e sem Exus Control.
 - [ ] A SPEC-004 consegue continuar operando com uma zona quando este firmware não está instalado.
 - [ ] A integração usa IDs/máscaras lógicas e capabilities, nunca endereço/canal físico hardcoded no PC.
 
@@ -530,7 +530,8 @@ Estimativa para uma pessoa com experiência em Arduino/C++, sem incluir PCB, com
 
 - [SPEC-001 — firmware háptico de uma zona](SPEC-001.md)
 - [SPEC-003 — transporte Bluetooth LE e OTA](SPEC-003.md)
-- [SPEC-004 — Exus Bridge e demo jogável](SPEC-004.md)
+- [SPEC-004 — Exus Control como ponte de jogos](SPEC-004.md)
+- [SPEC-005 — demo Godot](SPEC-005.md)
 - [Projeto Exus — A Frequência da Imersão](projeto_eksus_documentacao.pdf)
 - [Texas Instruments — TCA9548A datasheet](https://www.ti.com/lit/ds/symlink/tca9548a.pdf)
 - [Texas Instruments — DRV2605L datasheet](https://www.ti.com/lit/ds/symlink/drv2605l.pdf)

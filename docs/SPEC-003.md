@@ -3,8 +3,9 @@
 > **Status:** próxima etapa de implementação.
 >
 > **Depende de:** [SPEC-001](SPEC-001.md) e [SPEC-002](SPEC-002.md), já
-> implementadas e validadas por USB Serial. A integração com jogos e a Exus
-> Bridge pertencem à [SPEC-004](SPEC-004.md).
+> implementadas e validadas por USB Serial. A evolução do Exus Control para
+> receber jogos pertence à [SPEC-004](SPEC-004.md); a demo Godot, à
+> [SPEC-005](SPEC-005.md).
 >
 > **Objetivo:** permitir que um PC controle o ESP32-C3 por Bluetooth Low Energy
 > (BLE), sem alterar a lógica háptica nem reduzir as proteções existentes.
@@ -47,10 +48,10 @@ instalar programa do fabricante: o adaptador usa o driver do próprio Windows.
 | No protótipo físico | No PC |
 |---|---|
 | Desligar a USB antes de mexer em fios. Conferir GND comum, DRV2605, TCA e motores conforme o README. | Ter Windows 10/11, Bluetooth LE ativo e Python 3.10+ instalado. Não é necessário instalar um "programa Bluetooth" separado. |
-| Usar inicialmente **apenas o cabo USB de dados** como alimentação. Não usar a bateria nesta fase. | Instalar Arduino IDE, suporte ESP32 e biblioteca do DRV2605 conforme o README. Na Arduino IDE, instalar também **NimBLE-Arduino** pelo Library Manager quando o agente entregar o firmware BLE. Depois da implementação, instalar o cliente de bancada: `python -m pip install -r tools/requirements.txt`. |
+| Usar inicialmente **apenas o cabo USB de dados** como alimentação. Não usar a bateria nesta fase. | Instalar Arduino IDE, suporte ESP32 e biblioteca do DRV2605 conforme o README. Na Arduino IDE, instalar também **NimBLE-Arduino** pelo Library Manager quando o agente entregar o firmware BLE. Depois da implementação, instalar o cliente de bancada: `python -m pip install -r exus_control/requirements.txt`. |
 
-O agente deverá criar `tools/requirements.txt` com `bleak` e uma ferramenta
-`tools/exus_ble.py` (ou pacote equivalente). Assim, o grupo não precisa escrever
+O agente deverá criar `exus_control/requirements.txt` com `bleak` e uma ferramenta
+`python -m exus_control.cli` (ou pacote equivalente). Assim, o grupo não precisa escrever
 um aplicativo Bluetooth nem usar programas genéricos de celular.
 
 ### 2.2 Primeira conexão Bluetooth, passo a passo
@@ -63,9 +64,9 @@ um aplicativo Bluetooth nem usar programas genéricos de celular.
    Nenhum motor deve estar ativo antes de continuar.
 4. Habilitar a janela de pareamento na Serial com `ble pair enable`. Ela dura no
    máximo 60 s e só deve ser aberta com o protótipo na mesa, fora do corpo.
-5. Em outro terminal do PC, executar `python tools/exus_ble.py scan`. O nome
+5. Em outro terminal do PC, executar `python -m exus_control.cli scan`. O nome
    esperado é `Exus-<id-curto>`.
-6. Executar `python tools/exus_ble.py connect --id <id-curto> info`. O cliente
+6. Executar `python -m exus_control.cli connect --id <id-curto> info`. O cliente
    inicia o pareamento; aceitar a confirmação do Windows caso ela apareça. Não
    depender do menu **Configurações > Bluetooth** do Windows: dispositivos BLE
    GATT podem não aparecer ali como fone de ouvido, embora estejam funcionando.
@@ -78,10 +79,10 @@ um aplicativo Bluetooth nem usar programas genéricos de celular.
 Exemplos que o cliente de bancada deve oferecer após a implementação:
 
 ```powershell
-python tools/exus_ble.py scan
-python tools/exus_ble.py connect --id A1B2 info
-python tools/exus_ble.py connect --id A1B2 command "pulse 0 15 500 10"
-python tools/exus_ble.py connect --id A1B2 command emergency
+python -m exus_control.cli scan
+python -m exus_control.cli connect --id A1B2 info
+python -m exus_control.cli connect --id A1B2 command "pulse 0 15 500 10"
+python -m exus_control.cli connect --id A1B2 command emergency
 ```
 
 O identificador é apenas um exemplo. O comando `scan` deve mostrar o valor real.
@@ -126,7 +127,7 @@ duração, *cooldown*, orçamento global ou bloqueio de emergência da SPEC-002.
 ## 4. Arquitetura e responsabilidades
 
 ```text
-PC: tools/exus_ble.py (agora) / Exus Bridge (SPEC-004)
+PC: Exus Control (bancada BLE + ponte local da SPEC-004)
                     │ BLE GATT criptografado
 ESP32-C3: BleTransport → CommandRouter → Segurança → Scheduler → ZoneDriver
                                                         │
@@ -143,7 +144,7 @@ limites, scheduler ou lógica de emergência.
 
 O contrato externo BLE usa somente IDs lógicos de zona e máscaras de zona. O
 comando físico `mux` pode permanecer como diagnóstico USB, mas não deve ser
-oferecido ao futuro Bridge nem usado por jogos.
+oferecido à ponte do Exus Control nem usado por jogos.
 
 ---
 
@@ -242,7 +243,7 @@ Fluxo obrigatório:
 6. O cliente reconecta e confirma a nova versão. Qualquer falha deixa diagnóstico
    explícito e permite recuperação por USB.
 
-O cliente deve oferecer `python tools/exus_ble.py flash firmware.bin`, com barra
+O cliente deve oferecer `python -m exus_control.cli flash firmware.bin`, com barra
 de progresso e confirmação do dispositivo alvo. Nunca transportar imagem OTA em
 `command`, nem aceitar controle háptico durante a atualização. Neste marco de
 bancada, hash e partição inativa são mínimos; antes de distribuição externa,
@@ -277,7 +278,7 @@ roteador.
 - Adicionar NimBLE-Arduino, `BleProtocol`, anúncio e `device-info`/`status`.
 - Implementar janela de pareamento Serial, criptografia, bond único e limpeza de
   bond apenas pela Serial.
-- Criar `tools/requirements.txt`, `tools/exus_ble.py scan` e `info`.
+- Criar `exus_control/requirements.txt`, `python -m exus_control.cli scan` e `info`.
 - Documentar no README os pré-requisitos do PC e o passo a passo da seção 2.
 
 **Gate:** apenas PC pareado lê informações; apagar o bond pelo USB revoga acesso.
@@ -354,8 +355,8 @@ caminho USB.
 ## 9. Relação com a SPEC-004
 
 Esta SPEC entrega o transporte de dispositivo e o cliente de bancada. A
-SPEC-004 consome o mesmo contrato lógico por `BleTransport` ou
-`SerialTransport`, sem conhecer TCA, canal físico, ERM/LRA, bateria ou OTA.
+SPEC-004 evolui o mesmo Exus Control para consumir eventos de jogos, adaptando o
+cliente BLE existente sem conhecer TCA, canal físico, ERM/LRA, bateria ou OTA.
 
 O aplicativo visual para uso do grupo, que reutiliza o cliente/protocolo BLE sem
 substituir o firmware, é detalhado na [SPEC-003.5](SPEC-003.5.md).
@@ -366,4 +367,5 @@ substituir o firmware, é detalhado na [SPEC-003.5](SPEC-003.5.md).
 - [Bluetooth API — Espressif](https://docs.espressif.com/projects/esp-idf/en/stable/esp32c3/api-reference/bluetooth/index.html)
 - [OTA e partições — Espressif](https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/api-reference/system/ota.html)
 - [SPEC-002 — firmware multi-zona](SPEC-002.md)
-- [SPEC-004 — Exus Bridge e demo jogável](SPEC-004.md)
+- [SPEC-004 — Exus Control como ponte de jogos](SPEC-004.md)
+- [SPEC-005 — demo Godot](SPEC-005.md)
