@@ -1,0 +1,93 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Shader" path="res://shaders/sea.gdshader" id="2_sea"]
+[ext_resource type="Texture2D" path="res://assets/boat_base_chromakey.png" id="3_boat_base"]
+[ext_resource type="Shader" path="res://shaders/chroma_key.gdshader" id="4_key"]
+[ext_resource type="Texture2D" path="res://assets/boat_full_chromakey.png" id="5_sail_source"]
+[ext_resource type="Shader" path="res://shaders/sail_layer.gdshader" id="6_sail_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_sea"]
+shader = ExtResource("2_sea")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_boat"]
+shader = ExtResource("4_key")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_sail"]
+shader = ExtResource("6_sail_shader")
+
+[node name="BoatDemo" type="Node2D"]
+script = ExtResource("1_main")
+
+[node name="Sea" type="ColorRect" parent="."]
+z_index = -1
+offset_left = -2400.0
+offset_top = -1800.0
+offset_right = 2400.0
+offset_bottom = 1800.0
+mouse_filter = 2
+material = SubResource("ShaderMaterial_sea")
+color = Color(1, 1, 1, 1)
+
+[node name="Boat" type="Node2D" parent="."]
+position = Vector2(640, 390)
+z_index = 1
+
+[node name="Hull" type="Sprite2D" parent="Boat"]
+scale = Vector2(0.18, 0.18)
+texture = ExtResource("3_boat_base")
+material = SubResource("ShaderMaterial_boat")
+
+[node name="Sail" type="Sprite2D" parent="Boat"]
+scale = Vector2(0.18, 0.18)
+texture = ExtResource("5_sail_source")
+material = SubResource("ShaderMaterial_sail")
+
+[node name="Camera2D" type="Camera2D" parent="Boat"]
+position_smoothing_enabled = true
+position_smoothing_speed = 5.0
+
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="Title" type="Label" parent="HUD"]
+offset_left = 28.0
+offset_top = 24.0
+theme_override_colors/font_color = Color(0.93, 0.97, 1, 1)
+theme_override_colors/font_shadow_color = Color(0.01, 0.03, 0.08, 0.9)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 28
+text = "EXUS  •  MAR DE LUZ"
+
+[node name="Subtitle" type="Label" parent="HUD"]
+offset_left = 30.0
+offset_top = 63.0
+theme_override_colors/font_color = Color(0.68, 0.84, 0.92, 1)
+theme_override_font_sizes/font_size = 15
+text = "A/D ou ←/→: leme   •   W/S: vela (0% para parar)   •   F8: painel"
+
+[node name="Wind" type="Label" parent="HUD"]
+offset_left = 30.0
+offset_top = 112.0
+theme_override_colors/font_color = Color(1, 0.89, 0.55, 1)
+theme_override_font_sizes/font_size = 18
+
+[node name="Status" type="Label" parent="HUD"]
+offset_left = 30.0
+offset_top = 140.0
+theme_override_colors/font_color = Color(0.75, 0.91, 0.88, 1)
+theme_override_font_sizes/font_size = 15
+
+[node name="Hint" type="Label" parent="HUD"]
+offset_left = 30.0
+offset_top = 668.0
+theme_override_colors/font_color = Color(0.84, 0.92, 0.95, 0.9)
+theme_override_font_sizes/font_size = 16
+text = "O vento muda e inclina ondas, espuma e vela. Contorne ilhas e gelo."
+
+[node name="Flash" type="ColorRect" parent="HUD"]
+offset_right = 1280.0
+offset_bottom = 720.0
+mouse_filter = 2
+color = Color(0.8, 0.94, 1, 0)

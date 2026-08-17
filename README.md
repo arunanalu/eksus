@@ -10,7 +10,8 @@ de multiplexadores e atuadores, controlados pela USB Serial ou por Bluetooth LE.
 > na [`SPEC-003`](docs/SPEC-003.md). O aplicativo visual de controle BLE está
 > na [`SPEC-003.5`](docs/SPEC-003.5.md) e sua evolução para ponte de jogos está
 > na [`SPEC-004`](docs/SPEC-004.md). A demo Godot está na
-> [`SPEC-005`](docs/SPEC-005.md).
+> [`SPEC-005`](docs/SPEC-005.md). A próxima demo leve de navegação está na
+> [`SPEC-006`](docs/SPEC-006.md).
 
 ---
 
@@ -341,7 +342,8 @@ Todos os comandos são enviados pelo Serial Monitor (115200 baud), um por linha.
 | `mux <1-8> pulse <intens%> <ms> [Hz]` | Pulso em todos os atuadores prontos do mux | `mux 2 pulse 25 500 30` |
 | `mux <1-8> effect <1-123>` | Efeito em todos os atuadores prontos do mux | `mux 2 effect 14` |
 | `group <máscara> ...` | Acionar uma máscara lógica de até 64 zonas | `group 0x03 effect 14` |
-| `stop <zona\|mux:N\|all>` | Parar uma zona, mux ou tudo | `stop mux:2` |
+| `stream <máscara> <zona:intens,...> <ttl_ms> <Hz> [prioridade]` | Atualizar RTP contínuo por zona, sem reiniciar cooldown; expira por TTL | `stream 0x07 0:16,1:0,2:9 600 14 20` |
+| `stop <zona\|mask:0x..\|mux:N\|all>` | Parar uma zona, máscara, mux ou tudo | `stop mask:0x07` |
 | `emergency` / `resume` | Parada global e liberação após inspeção | `emergency` |
 | `status [zona]` | Diagnóstico global ou detalhado | `status 10` |
 | `Q [seq]` | Capacidades e lista de zonas prontas | `Q 42` |
@@ -598,3 +600,4 @@ Para entender a lógica completa e os próximos passos de evolução, consulte:
 - [`docs/SPEC-003.5.md`](docs/SPEC-003.5.md) — aplicativo visual Windows para controle BLE;
 - [`docs/SPEC-004.md`](docs/SPEC-004.md) — evolução do Exus Control para ponte de jogos.
 - [`docs/SPEC-005.md`](docs/SPEC-005.md) — demo Godot desenvolvida e testada primeiro sem hardware.
+- [`docs/SPEC-006.md`](docs/SPEC-006.md) — Boat Demo leve, perfil de três zonas e build Windows.

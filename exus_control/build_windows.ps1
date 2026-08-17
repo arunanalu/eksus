@@ -2,6 +2,12 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
+$boatProfileSource = Join-Path $repoRoot 'game\boat-demo\config\haptics\boat-demo.v1.json'
+$boatProfileTarget = Join-Path $PSScriptRoot 'profiles\boat-demo.v1.json'
+if (Test-Path $boatProfileSource) {
+  Copy-Item $boatProfileSource $boatProfileTarget -Force
+}
+
 $pythonCommand = Get-Command python.exe -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($pythonCommand) {
   $python = $pythonCommand.Source
@@ -17,6 +23,7 @@ if (-not $python) {
 & $python -m PyInstaller --noconfirm --clean --windowed --name Exus-Control `
   --distpath "$PSScriptRoot\dist" --workpath "$PSScriptRoot\build" `
   --specpath "$PSScriptRoot" --paths $repoRoot --collect-all bleak --collect-all bleak_winrt `
+  --add-data "$PSScriptRoot\profiles;exus_control\profiles" `
   "$repoRoot\exus_control_app.py"
 
 Copy-Item "$PSScriptRoot\README.md" "$PSScriptRoot\dist\Exus-Control\README.md" -Force

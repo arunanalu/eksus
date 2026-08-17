@@ -26,7 +26,9 @@ class ControlWorker:
         self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(target=self._run, daemon=True, name="exus-control")
         log_name = f"session-{time.strftime('%Y%m%d-%H%M%S')}.jsonl"
-        simulation_transport = MockTransport(Capabilities((0,), "Simulador"), connected=False)
+        # O simulador deve espelhar o protótipo-alvo do boat-demo.  Manter só a
+        # zona 0 aqui ocultava a propagação direcional antes de conectar o BLE.
+        simulation_transport = MockTransport(Capabilities((0, 1, 2), "Simulador"), connected=False)
         self.bridge_session = BridgeSession(simulation_transport, simulation_transport.capabilities,
                                             logger=SessionLogger(Path.cwd() / "logs" / log_name))
         self.bridge = BridgeServer(self.bridge_session)

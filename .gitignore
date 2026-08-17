@@ -21,6 +21,9 @@ exus_control/*.spec
 .vscode/
 *.iml
 
+# Godot generated editor/import cache
+.godot/
+
 # OS
 Thumbs.db
 .DS_Store

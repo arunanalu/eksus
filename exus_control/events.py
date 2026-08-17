@@ -7,7 +7,7 @@ import math
 from typing import Any, Mapping
 
 SCHEMA = "exus.game-event/1"
-EVENTS = frozenset({"damage", "explosion", "wind", "threat", "weapon_fire"})
+EVENTS = frozenset({"damage", "explosion", "wind", "threat", "weapon_fire", "ice_collision"})
 STATES = frozenset({"oneshot", "start", "update", "stop"})
 MAX_DURATION_MS = 2_000
 
@@ -29,6 +29,7 @@ class GameEvent:
     duration_ms: int | None
     source: str
     output_requested: bool
+    haptic_profile: str = "default/v1"
 
 
 def _fail(message: str) -> None:
@@ -90,6 +91,9 @@ def parse_game_event(payload: Mapping[str, Any]) -> GameEvent:
     output_requested = payload.get("output_requested", False)
     if not isinstance(output_requested, bool):
         _fail("output_requested deve ser booleano")
+    haptic_profile = payload.get("haptic_profile", "default/v1")
+    if not isinstance(haptic_profile, str) or not haptic_profile.strip() or len(haptic_profile) > 128:
+        _fail("haptic_profile inválido")
     return GameEvent(
         session_id=session_id,
         seq=_integer(payload, "seq"),
@@ -102,4 +106,5 @@ def parse_game_event(payload: Mapping[str, Any]) -> GameEvent:
         duration_ms=duration,
         source=source,
         output_requested=output_requested,
+        haptic_profile=haptic_profile,
     )
