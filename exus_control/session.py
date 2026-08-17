@@ -85,10 +85,16 @@ class BridgeSession:
             return self._record(event, "rejected", reason="duplicate_or_out_of_order")
         self._last_seq[event.session_id] = event.seq
         if event.state == "stop":
+            previous_intent = self.arbiter.stream_intent((event.session_id, event.stream_id))
             stopped = self.arbiter.stop_stream((event.session_id, event.stream_id))
+            command = None
+            if previous_intent:
+                mask = sum(1 << zone for zone in previous_intent.zones)
+                command = f"stop mask:0x{mask:X}"
             if stopped and self.connected and self.hardware_output_enabled:
-                await self.transport.stop_all()
-            return self._record(event, "sent" if stopped and self.hardware_output_enabled else "simulated", command="stop all" if stopped else None,
+                assert command is not None
+                await self.transport.send(command)
+            return self._record(event, "sent" if stopped and self.hardware_output_enabled else "simulated", command=command,
                                 reason=None if stopped else "unknown_stream")
         try:
             intent = self.mapper.map(event, self.capabilities.zones_ready)
@@ -118,7 +124,8 @@ class BridgeSession:
     async def expire_streams(self) -> int:
         expired = self.arbiter.expire(self._clock_ms())
         if expired and self.connected and self.hardware_output_enabled:
-            await self.transport.stop_all()
+            mask = sum(1 << zone for intent in expired for zone in intent.zones)
+            await self.transport.send(f"stop mask:0x{mask:X}")
         return len(expired)
 
     def _record(self, event: GameEvent, result: str, *, command: str | None = None, reason: str | None = None) -> BridgeResult:
@@ -128,5 +135,8 @@ class BridgeSession:
                                       "sent_at_ms": event.sent_at_ms, "event": event.event, "state": event.state,
                                       "stream_id": event.stream_id, "azimuth_deg": event.azimuth_deg,
                                       "magnitude": event.magnitude, "duration_ms": event.duration_ms,
-                                      "source": event.source, "output_requested": event.output_requested})
+                                      "source": event.source, "output_requested": event.output_requested,
+                                      "haptic_profile": event.haptic_profile})
+        # O perfil seleciona somente a tabela háptica do Control; não é uma
+        # permissão para o jogo alterar limites elétricos.
         return outcome

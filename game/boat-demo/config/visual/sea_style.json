@@ -1,0 +1,5 @@
+{
+  "palette": {"deep": "#041f3f", "horizon": "#086197", "sun": "#ffc86b", "foam": "#dff9ff"},
+  "waves": {"far_speed": 0.12, "near_speed": 0.24, "wave_scale": 3.8},
+  "quality": {"high": 1.0, "medium": 0.75, "low": 0.5}
+}

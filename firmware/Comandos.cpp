@@ -14,7 +14,8 @@ static void help() {
   out().println(F("\n=== Exus multi-zona ==="));
   out().println(F("zones | scan all | status [zone] | Q [seq]"));
   out().println(F("pulse <zone> <intens%> <ms> [Hz] | effect <zone> <1-123>"));
-  out().println(F("group <mask> <pulse|effect> ... | stop <zone|mux:N|all>"));
+  out().println(F("group <mask> <pulse|effect> ... | stream <mask> <z:p,...> <ttl> <Hz> [prio]"));
+  out().println(F("stop <zone|mask:0x..|mux:N|all>"));
   out().println(F("emergency | resume | ble status | ble pair enable | ble bonds clear"));
 }
 
@@ -28,7 +29,7 @@ static void capabilities(unsigned long seq) {
     out().print(id);
     first = false;
   }
-  out().printf("],\"max_group_size\":%u,\"features\":[\"rom\",\"rtp\",\"per_zone_limits\",\"dynamic_mux_discovery\"]}\n",
+  out().printf("],\"max_group_size\":%u,\"features\":[\"rom\",\"rtp\",\"stream_rtp\",\"per_zone_limits\",\"dynamic_mux_discovery\"]}\n",
     MAX_SIMULTANEOUS_ZONES);
 }
 
@@ -107,8 +108,29 @@ static bool commandGroup(const char* args) {
   return accepted != 0;
 }
 
+static bool commandStream(const char* args) {
+  char maskText[20] = {0}, levelsText[96] = {0};
+  unsigned long ttl = 0; float frequency = 0.0f; int priority = 50;
+  if (sscanf(args, "%19s %95s %lu %f %d", maskText, levelsText, &ttl, &frequency, &priority) < 4 || ttl == 0) {
+    out().println(F("[ERRO] Uso: stream <mask> <zona:intens,...> <ttl_ms> <Hz> [prioridade]")); return false;
+  }
+  const uint64_t mask = strtoull(maskText, nullptr, 0);
+  StreamLevel levels[EXUS_MAX_ZONES]; uint8_t count = 0;
+  char* context = nullptr;
+  for (char* token = strtok_r(levelsText, ",", &context); token; token = strtok_r(nullptr, ",", &context)) {
+    int zone = -1, intensity = -1;
+    if (sscanf(token, "%d:%d", &zone, &intensity) != 2 || zone < 0 || zone >= zone_map_count() ||
+        !(mask & (UINT64_C(1) << zone)) || count >= EXUS_MAX_ZONES) return false;
+    levels[count++] = {(uint8_t)zone, intensity};
+  }
+  const bool ok = scheduler_stream_levels(levels, count, frequency, ttl, (uint8_t)constrain(priority, 0, 255));
+  out().printf("[%s] stream zonas=%u\n", ok ? "OK" : "IGNORADO", count);
+  return ok;
+}
+
 static bool commandStop(const char* args) {
   if (!*args || !strcmp(args, "all")) scheduler_stop_all();
+  else if (!strncmp(args, "mask:", 5)) scheduler_stop_mask(strtoull(args + 5, nullptr, 0));
   else if (!strncmp(args, "mux:", 4)) {
     const int mux = atoi(args + 4); if (mux < 1 || mux > EXUS_MAX_MUXES) return false;
     const uint8_t first = (uint8_t)((mux - 1) * 8); for (uint8_t id = first; id < first + 8; ++id) scheduler_stop_zone(id);
@@ -147,6 +169,7 @@ static bool executeInternal(const char* line) {
   if (!strcmp(command, "effect")) return commandEffect(args);
   if (!strcmp(command, "mux")) return commandMux(args);
   if (!strcmp(command, "group")) return commandGroup(args);
+  if (!strcmp(command, "stream")) return commandStream(args);
   if (!strcmp(command, "v")) { float frequency; int intensity; unsigned long duration = 0; const bool ok = sscanf(args, "%f %d %lu", &frequency, &intensity, &duration) >= 2 && scheduler_start_pulse(0, frequency, intensity, duration); out().printf("[%s] legacy zone=0\n", ok ? "OK" : "IGNORADO"); return ok; }
   if (!strcmp(command, "ef")) { const bool ok = scheduler_start_effect(0, (uint8_t)atoi(args)); out().printf("[%s] legacy zone=0\n", ok ? "OK" : "IGNORADO"); return ok; }
   out().println(F("[ERRO] Comando desconhecido. Digite h.")); return false;

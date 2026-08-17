@@ -67,6 +67,56 @@ bool scheduler_start_effect(uint8_t zoneId, uint8_t effect, uint8_t priority) {
   return true;
 }
 
+bool scheduler_stream_levels(const StreamLevel* levels, uint8_t count, float frequencyHz,
+  uint32_t ttlMs, uint8_t priority) {
+  if (!levels || count == 0 || count > EXUS_MAX_ZONES) return false;
+  const uint8_t zoneCount = zone_map_count();
+  bool selected[EXUS_MAX_ZONES] = {};
+  ParametrosValidados validated[EXUS_MAX_ZONES];
+  uint8_t activeCount = scheduler_active_count();
+  uint16_t amplitudeSum = scheduler_amplitude_sum();
+
+  // Valida o conjunto e seu orçamento antes de atualizar os drivers.
+  for (uint8_t index = 0; index < count; ++index) {
+    const StreamLevel& level = levels[index];
+    if (level.zoneId >= zoneCount || level.intensityPct < 0 || selected[level.zoneId]) return false;
+    selected[level.zoneId] = true;
+    const ZoneRuntimeState& current = states[level.zoneId];
+    if (current.mode != EFFECT_NONE) {
+      if (priority < current.priority) return false;
+      --activeCount;
+      amplitudeSum -= current.amplitude;
+    }
+    if (level.intensityPct == 0) continue;
+    if (!zone_driver_ready(level.zoneId)) return false;
+    // Atualização de zona já ativa não entra em cooldown; uma zona que foi
+    // realmente parada continua obedecendo ao intervalo de segurança.
+    if (current.mode == EFFECT_NONE && !seguranca_cooldown_zona_ok(level.zoneId)) return false;
+    validated[index] = seguranca_validar_zona(level.zoneId, frequencyHz, level.intensityPct,
+      ttlMs, DEFAULT_DUTY_CYCLE);
+    if (!validated[index].valido) return false;
+    ++activeCount;
+    amplitudeSum += validated[index].amplitude;
+  }
+  if (activeCount > MAX_SIMULTANEOUS_ZONES || amplitudeSum > MAX_GLOBAL_AMPLITUDE) return false;
+
+  const uint32_t now = millis();
+  for (uint8_t index = 0; index < count; ++index) {
+    const StreamLevel& level = levels[index];
+    if (level.intensityPct == 0) {
+      scheduler_stop_zone(level.zoneId);
+      continue;
+    }
+    const ParametrosValidados& p = validated[index];
+    if (!zone_driver_set_rtp(level.zoneId, p.amplitude)) return false;
+    // Ao contrário de pulse, não chama scheduler_stop_zone: preserva o fluxo
+    // contínuo e não cria cooldown entre pacotes de atualização.
+    states[level.zoneId] = {EFFECT_RTP, true, p.amplitude, priority, p.freq_hz,
+      p.duty_cycle, now, now, p.duracao_ms, 0};
+  }
+  return true;
+}
+
 uint8_t scheduler_start_mux_pulse(uint8_t muxNumber, float frequencyHz,
   int intensityPct, uint32_t durationMs, uint8_t priority) {
   if (!zone_driver_mux_present(muxNumber)) return 0;
@@ -98,6 +148,12 @@ void scheduler_stop_zone(uint8_t zoneId) {
 
 void scheduler_stop_all() {
   for (uint8_t id = 0; id < zone_map_count(); ++id) scheduler_stop_zone(id);
+}
+
+void scheduler_stop_mask(uint64_t mask) {
+  for (uint8_t id = 0; id < zone_map_count(); ++id) {
+    if (mask & (UINT64_C(1) << id)) scheduler_stop_zone(id);
+  }
 }
 
 void scheduler_update() {
