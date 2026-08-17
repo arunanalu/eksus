@@ -589,10 +589,10 @@ está nos valores depois de `:`; não na máscara.
 Para vibração real, conecte o Exus pelo BLE, confirme as três zonas prontas,
 inicie a ponte e marque **Permitir saída para o protótipo**. O jogo também começa
 com `output_requested=false`; essa segunda autorização explícita evita que abrir
-um `.exe` acione o corpo por acidente. Na Boat Demo de desenvolvimento, ela é
-alterada no Inspector/bridge para `real_output_requested`; `F7` a desliga de
-novo. O Control não envia nada enquanto uma das duas autorizações estiver
-desligada.
+um `.exe` acione o corpo por acidente. Na Boat Demo, pressione `F6` para alternar
+a solicitação; o HUD mostra `Saída: REAL LIGADA` quando ela está ativa. `F7` a
+desliga imediatamente. O Control não envia nada enquanto uma das duas
+autorizações estiver desligada.
 
 O stream de vento expira em 600 ms se o jogo parar de atualizar. Fechar o jogo,
 desligar a saída, perder a conexão BLE, usar **PARAR TUDO** ou acionar

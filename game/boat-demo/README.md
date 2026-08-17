@@ -6,9 +6,9 @@ Demo 2D leve de navegação a vela para testar vento direcional e impacto de gel
 
 1. Abra esta pasta no Godot 4.5.x e execute a cena principal.
 2. Inicie o Exus Control para receber UDP local em `127.0.0.1:4242`.
-3. O jogo inicia em simulação. Para testar hardware, habilite a saída no Control e altere explicitamente `real_output_requested` no Inspector/bridge de desenvolvimento.
+3. O jogo inicia em simulação. Para testar hardware, habilite a saída no Control e pressione `F6` no jogo; o HUD passa a mostrar `Saída: REAL LIGADA`.
 
-Controles: `A/D` ou setas para leme; `W/S` para vela; `F7` desliga saída real; `F8` mostra painel.
+Controles: `A/D` ou setas para leme; `W/S` para vela; `F6` alterna a solicitação de saída real; `F7` a desliga; `F8` mostra painel.
 
 ## Calibração háptica
 

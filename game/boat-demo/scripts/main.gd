@@ -33,6 +33,7 @@ var elapsed := 0.0
 var wind_timer := 0.0
 var flash_amount := 0.0
 var debug_visible := true
+var real_output_toggle_was_pressed := false
 var last_hit: Dictionary = {}
 var last_island_hit: Dictionary = {}
 
@@ -85,6 +86,11 @@ func _process(delta: float) -> void:
 	if wind_timer >= ExusBridge.wind_update_interval():
 		wind_timer = 0.0
 		ExusBridge.update_wind(_relative_wind_deg(), _wind_magnitude())
+	var real_output_toggle_pressed := Input.is_key_pressed(KEY_F6)
+	if real_output_toggle_pressed and not real_output_toggle_was_pressed:
+		ExusBridge.real_output_requested = not ExusBridge.real_output_requested
+		flash_amount = 0.22
+	real_output_toggle_was_pressed = real_output_toggle_pressed
 	if Input.is_key_pressed(KEY_F8):
 		debug_visible = true
 	if Input.is_key_pressed(KEY_F7):
@@ -169,4 +175,5 @@ func _update_hud() -> void:
 		direction = "DIREITA"
 	wind_label.text = "VENTO  %s  •  %d°  •  %d%%" % [direction, roundi(degrees), roundi(_wind_magnitude() * 100.0)]
 	status_label.visible = debug_visible
-	status_label.text = "Vela %d%%  |  Exus: %s  |  Perfil: boat-demo/v1" % [roundi(sail_trim * 100.0), ExusBridge.last_result]
+	var output_state := "REAL LIGADA" if ExusBridge.real_output_requested else "SIMULAÇÃO"
+	status_label.text = "Vela %d%%  |  Saída: %s [F6]  |  F7 desliga  |  Exus: %s" % [roundi(sail_trim * 100.0), output_state, ExusBridge.last_result]
