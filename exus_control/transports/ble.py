@@ -21,8 +21,10 @@ class BleTransportAdapter:
 
     async def connect(self) -> Capabilities:
         self.client = self._factory(self.device)
-        await self.client.connect(pair=True)
-        reply = await self.client.command("Q 0")
+        await self.client.connect()
+        # O BLE sobe antes da calibracao dos atuadores; aguarde a consulta de
+        # capacidades sem atrasar a descoberta/conexao inicial.
+        reply = await self.client.command("Q 0", timeout=15.0)
         zones = tuple(parse_capabilities(reply))
         if not zones:
             await self.disconnect(); raise RuntimeError("O dispositivo não informou zonas prontas.")

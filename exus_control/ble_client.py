@@ -61,9 +61,14 @@ class ExusBleClient:
         if client_factory is None:
             raise RuntimeError("BLE não está instalado neste Python. Instale as dependências de execução.")
         self.device = device
-        self._client = client_factory(device.device, timeout=20.0)
+        self._client = client_factory(
+            device.device,
+            timeout=20.0,
+            disconnected_callback=self._handle_disconnect,
+        )
         self._sequences = itertools.count(1)
         self._responses: dict[int, asyncio.Future[str]] = {}
+        self._loop: asyncio.AbstractEventLoop | None = None
         self.status = ""
         self.disconnected = asyncio.Event()
 
@@ -71,19 +76,19 @@ class ExusBleClient:
     def connected(self) -> bool:
         return self._client.is_connected
 
-    async def connect(self, pair: bool = True) -> None:
+    async def connect(self, pair: bool = False) -> None:
+        # ``pair`` permanece apenas para compatibilidade de API. O firmware
+        # aberto nao cria bond e o cliente nunca chama o pareamento do SO.
+        del pair
+        self._loop = asyncio.get_running_loop()
         self.disconnected.clear()
         await self._client.connect()
-        if pair:
-            try:
-                paired = await self._client.pair()
-                if paired is False:
-                    raise BleakError("o Windows recusou o pareamento")
-            except BleakError as exc:
-                if "already" not in str(exc).lower():
-                    await self.disconnect(); raise
-        await self._client.start_notify(RESPONSE_UUID, self._received_response)
-        await self._client.start_notify(STATUS_UUID, self._received_status)
+        try:
+            await self._client.start_notify(RESPONSE_UUID, self._received_response)
+            await self._client.start_notify(STATUS_UUID, self._received_status)
+        except Exception:
+            await self.disconnect()
+            raise
 
     async def disconnect(self) -> None:
         for uuid in (RESPONSE_UUID, STATUS_UUID):
@@ -92,6 +97,17 @@ class ExusBleClient:
         if self._client.is_connected:
             await self._client.disconnect()
         self.disconnected.set()
+
+    def _handle_disconnect(self, _client) -> None:
+        if self._loop and not self._loop.is_closed():
+            self._loop.call_soon_threadsafe(self._mark_disconnected)
+
+    def _mark_disconnected(self) -> None:
+        self.disconnected.set()
+        for future in self._responses.values():
+            if not future.done():
+                future.set_exception(ConnectionError("O link Bluetooth foi desconectado."))
+        self._responses.clear()
 
     def _received_response(self, _, data: bytearray) -> None:
         text = bytes(data).decode("utf-8", errors="replace").strip()

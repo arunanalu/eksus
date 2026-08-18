@@ -32,18 +32,17 @@ ou uma interface web nesta etapa.
 
 ## 2. Limite importante: o que o aplicativo resolve
 
-O aplicativo substitui o terminal **depois que o BLE já foi preparado**. A
-primeira gravação do firmware e a liberação do primeiro pareamento continuam
-por USB Serial:
+O aplicativo substitui o terminal depois da primeira gravação do firmware. A
+USB é necessária para upload e diagnóstico, mas não para liberar o Bluetooth:
 
 1. instalar NimBLE-Arduino e fazer upload do firmware pelo Arduino IDE;
-2. no Serial Monitor, enviar `ble pair enable`;
-3. abrir o Exus Control, encontrar e parear o dispositivo;
-4. nos usos seguintes, abrir o Exus Control e conectar normalmente.
+2. alimentar o Exus por USB, bateria ou fonte externa validada;
+3. abrir o Exus Control, encontrar e conectar o dispositivo;
+4. desconectar e reconectar livremente, inclusive em outro computador.
 
-Uma futura placa com botão físico pode eliminar o passo `ble pair enable`, mas
-não faz parte desta SPEC. O app não altera o firmware, não alimenta a placa, não
-aprova bateria nem substitui os limites de segurança locais.
+O cliente não chama o pareamento do sistema operacional. O app não altera o
+firmware, não alimenta a placa, não aprova bateria nem substitui os limites de
+segurança locais. Como o GATT é aberto, o uso deve ocorrer em ambiente controlado.
 
 ---
 
@@ -73,7 +72,7 @@ limites, enviar bytes arbitrários ou ocultar uma emergência ativa.
 | Estado | firmware, zonas prontas, emergência, intensidade máxima e mensagens claras | mostrar “NÃO CONECTADO”, “EMERGÊNCIA” e “SEM ZONAS” em destaque |
 | Teste por zona | caixas de seleção para cada zona pronta; intensidade, duração e frequência conservadoras + botão “Testar zonas marcadas” | uma ou mais zonas podem vibrar simultaneamente por uma máscara `group`; iniciar em 15%, 500 ms e 10 Hz e nunca permitir valores acima da capacidade relatada |
 | Ações globais | **PARAR TUDO** e **EMERGÊNCIA** grandes e sempre visíveis; `Resume` pede confirmação | emergência disponível enquanto houver conexão, sem depender de outro formulário |
-| Log | últimas respostas ACK/NACK, horário e erro de conexão | somente leitura; não expor chaves/bonds/dados sensíveis |
+| Log | últimas respostas ACK/NACK, horário e erro de conexão | somente leitura; não expor chaves/dados sensíveis |
 
 No MVP, suportar apenas `pulse`, `stop`, `emergency`, `resume`, `Q` e `status`.
 Efeitos ROM, grupos e controles de padrão podem ser incluídos quando os testes
@@ -101,7 +100,7 @@ Antes de criar a tela, separar o cliente de terminal em duas camadas:
 ```text
 exus_control/
 ├── exus_ble_client.py  ← biblioteca assíncrona reutilizável: scan, connect,
-│                          pair, info, command, emergency e callbacks
+│                          info, command, emergency e callbacks
 ├── exus_ble.py         ← CLI atual; passa a chamar a biblioteca
 ├── exus_control.py     ← interface Tkinter
 ├── requirements.txt    ← dependências de execução/desenvolvimento
@@ -110,7 +109,7 @@ exus_control/
 
 `ExusBleClient` não pode chamar Tkinter diretamente. A UI executa a operação BLE
 em tarefa/thread própria e devolve resultados à thread principal por fila. Isso
-evita congelar a janela durante scan, pareamento, reconexão ou timeout.
+evita congelar a janela durante scan, conexão, reconexão ou timeout.
 
 ---
 
@@ -118,9 +117,9 @@ evita congelar a janela durante scan, pareamento, reconexão ou timeout.
 
 ### Fase 0 — validar a base BLE
 
-- Usar `python -m exus_control.cli` para completar scan, pareamento, `Q`, pulso mínimo,
+- Usar `python -m exus_control.cli` para completar scan, conexão, `Q`, pulso mínimo,
   emergência e teste de desconexão no protótipo físico.
-- Registrar nome anunciado, comportamento do diálogo de pareamento Windows e
+- Registrar nome anunciado, conexão direta sem diálogo do Windows e
   respostas reais ACK/NACK.
 
 **Gate:** o cliente de terminal funciona com o hardware antes de criar a UI.
@@ -140,7 +139,7 @@ gate continua pendente até o primeiro teste no ESP32 físico.
 
 - Implementar janela Tkinter, busca de dispositivos, lista de seleção, conexão,
   leitura de `device-info` e `Q`.
-- Mostrar estados de carregando, sem dispositivo, pareamento recusado, conexão
+- Mostrar estados de carregando, sem dispositivo, conexão recusada, conexão
   perdida e dispositivo sem zona pronta em português simples.
 - Bloquear botões hápticos até capabilities serem válidas.
 
@@ -187,7 +186,7 @@ executa o roteiro de teste sem instalar Python nem digitar comando.
   linha de comando; a firmware ainda aplica a parada local.
 - Sem conexão, todos os botões que acionam motor ficam desabilitados; não há
   fila para “enviar quando reconectar”.
-- Timeout, NACK, queda de Bluetooth ou falha no pareamento devem ser exibidos e
+- Timeout, NACK, queda de Bluetooth ou falha de conexão devem ser exibidos e
   não podem ser convertidos automaticamente em repetição de `pulse`/`effect`.
 - `Resume` só libera o bloqueio após confirmação explícita do operador; não
   religar nenhum motor automaticamente.
@@ -223,7 +222,7 @@ executa o roteiro de teste sem instalar Python nem digitar comando.
 
 O prazo pressupõe que a SPEC-003 já tenha sido validada no hardware. Sem placa
 disponível, a UI pode ser construída, mas só a validação no PC do protótipo
-confirma pareamento Windows, permissões Bluetooth e comportamento de desconexão.
+confirma permissões Bluetooth e comportamento de desconexão.
 
 ## Referências
 

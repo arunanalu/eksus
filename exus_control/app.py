@@ -199,7 +199,7 @@ class ExusControl(ttk.Frame):
     def connect(self):
         try: device=self.devices[list(self.device_list["values"]).index(self.device_choice.get())]
         except (ValueError,IndexError): messagebox.showwarning("Exus Control","Procure e selecione um protótipo primeiro."); return
-        self.connection_text.set("CONECTANDO / PAREANDO..."); self._future(self.worker.submit(self.worker.connect(device)),"connect")
+        self.connection_text.set("CONECTANDO..."); self._future(self.worker.submit(self.worker.connect(device)),"connect")
     def disconnect(self): self._future(self.worker.submit(self.worker.disconnect()),"disconnect")
     def _show_zones(self,zones):
         for widget in self.zones_content.winfo_children():widget.destroy()

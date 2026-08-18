@@ -22,7 +22,7 @@ if (-not $python) {
 & $python -m pip install -r "$PSScriptRoot\requirements-dev.txt"
 & $python -m PyInstaller --noconfirm --clean --windowed --name Exus-Control `
   --distpath "$PSScriptRoot\dist" --workpath "$PSScriptRoot\build" `
-  --specpath "$PSScriptRoot" --paths $repoRoot --collect-all bleak --collect-all bleak_winrt `
+  --specpath "$PSScriptRoot" --paths $repoRoot `
   --add-data "$PSScriptRoot\profiles;exus_control\profiles" `
   "$repoRoot\exus_control_app.py"
 

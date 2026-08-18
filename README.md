@@ -96,7 +96,7 @@ Dentro da Arduino IDE:
    https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
    ```
 3. Abra **Tools → Board → Boards Manager**, pesquise `esp32` e instale
-   o pacote da **Espressif Systems**.
+   o pacote da **Espressif Systems**, versão 3.3.11 usada nesta validação.
 
 ### 3.3 Biblioteca do DRV2605
 
@@ -107,7 +107,7 @@ Dentro da Arduino IDE:
 ### 3.4 Biblioteca Bluetooth
 
 1. Abra **Sketch → Include Library → Manage Libraries**.
-2. Pesquise `NimBLE-Arduino` e instale a biblioteca de mesmo nome, versão 2.x.
+2. Pesquise `NimBLE-Arduino` e instale a biblioteca de mesmo nome, versão 2.5.1.
 
 Ela é necessária para compilar a versão do firmware que anuncia Bluetooth LE.
 
@@ -460,62 +460,45 @@ powershell -ExecutionPolicy Bypass -File exus_control\build_windows.ps1
 Depois, copiar ou zipar toda a pasta `exus_control\dist\Exus-Control` — não apenas o
 arquivo `.exe` — e levá-la ao PC que ficará com o protótipo.
 
-### Primeira conexão pelo aplicativo Exus Control — recomendada
+### Conectar pelo aplicativo Exus Control — recomendado
 
-1. Mantenha o ESP32 conectado ao PC por **cabo USB de dados**. Faça upload do
-   firmware normalmente pela Arduino IDE; esta primeira gravação é por USB.
-2. Abra o Serial Monitor em **115200 baud**. Execute `zones`, `Q` e `emergency`;
-   confirme que todos os motores estão parados antes de seguir.
-3. No Serial Monitor, envie `ble pair enable`. Isso libera o primeiro
-   pareamento por 60 s. Deixe o protótipo na mesa, fora do corpo.
-4. Abra `Exus-Control.exe` por duplo clique. Se o Windows pedir permissão para
-   Bluetooth, permita.
-5. Clique em **Procurar protótipos**. Selecione o item `Exus-XXXXXX` encontrado
-   e clique em **Conectar**. Aceite a confirmação de pareamento do Windows, se
-   ela aparecer.
-6. A tela deve mudar para **CONECTADO — pronto para teste** e mostrar as zonas
-   prontas. Se aparecer “nenhuma zona pronta”, pare e revise a montagem/Serial.
-7. Marque **uma** zona. Deixe os valores iniciais seguros (15%, 500 ms e 10 Hz)
-   e clique em **Testar zonas marcadas**. Confirme a vibração na mesa.
-8. Clique em **PARAR TUDO** e depois em **EMERGÊNCIA — PARAR AGORA**. Em ambos
-   os casos, todos os motores precisam parar imediatamente.
-9. Para testar duas ou mais zonas juntas, marque mais de uma caixa e clique em
-   **Testar zonas marcadas**. O aplicativo envia uma única solicitação de grupo;
-   o firmware mantém a decisão final de segurança e pode limitar/recusar o
-   pedido conforme o orçamento de energia.
-10. Clique em **Desconectar** ou desligue o Bluetooth do PC. A tela deve indicar
-    a perda de conexão e todos os motores devem parar. Só então o BLE está
-    aprovado para o próximo teste.
+1. Grave este firmware uma vez pela USB. Depois disso, USB não é necessária
+   para conexão: bateria ou fonte externa validada são suficientes.
+2. Ligue o protótipo. O ESP32 inicia advertising BLE automaticamente, sem
+   comando Serial, PIN, janela de tempo ou pareamento no sistema operacional.
+3. Abra `Exus-Control.exe`, clique em **Procurar protótipos**, selecione
+   `Exus-XXXXXX` e clique em **Conectar**.
+4. A tela deve mostrar **CONECTADO — pronto para teste** e as zonas prontas.
+5. Teste uma zona na mesa com 15%, 500 ms e 10 Hz; depois valide **PARAR TUDO**
+   e **EMERGÊNCIA — PARAR AGORA**.
+6. Clique em **Desconectar**. Os motores devem parar e o Exus deve voltar a
+   aparecer na busca em até poucos segundos. Conecte novamente para validar.
 
-### Reconectar depois de reiniciar ou usar bateria
+### Reconectar, trocar de computador ou usar telefone
 
-O bond criado no primeiro pareamento fica salvo no PC e no ESP32. Portanto,
-depois de desligar USB, ligar a bateria ou reiniciar a placa, basta abrir o
-Exus Control, procurar `Exus-XXXXXX` e clicar em **Conectar**. **Não** execute
-`ble pair enable` novamente: a janela é apenas para o primeiro PC e sempre
-fecha no boot. O firmware reativa a criptografia do bond persistente antes de
-aceitar comandos.
+Não existe bond obrigatório. Depois de desconectar, reiniciar ou trocar a
+alimentação, basta procurar e conectar novamente. Não use `ble pair enable` e
+não é necessário esquecer o dispositivo. Um computador ou telefone diferente
+também pode conectar quando não houver outra conexão ativa.
 
-Se o aplicativo encontrar o Exus, mas a conexão falhar ou mostrar
-`Unreachable`, faça a recuperação uma única vez com USB conectado:
+No telefone, use um cliente BLE/GATT compatível. O Exus não é fone de ouvido e
+pode não aparecer na tela comum de dispositivos Bluetooth; ele aparece em apps
+que fazem scan BLE. Para comandá-lo manualmente, o app precisa usar os UUIDs de
+`firmware/BleProtocol.h`, assinar `response/status` e escrever quadros como
+`@1 Q 0\n` na característica `command`.
 
-1. Feche Exus Control, cliente de terminal e qualquer scanner BLE.
-2. No Windows, remova/esqueça `Exus-XXXXXX` em **Configurações > Bluetooth e
-   dispositivos**, se ele estiver listado.
-3. No Serial Monitor, envie `ble bonds clear`, reinicie a placa e envie
-   `ble pair enable`.
-4. Dentro de 60 s, conecte pelo Exus Control e conclua o pareamento.
-
-`ble pair enable` só abre quando não há conexão nem bond salvo. Essa regra
-impede que outro PC substitua silenciosamente o computador autorizado. Para
-trocar de PC, execute a recuperação acima de propósito.
+> **Política de acesso:** o modo solicitado é deliberadamente aberto. Qualquer
+> dispositivo próximo que conheça o protocolo pode conectar e enviar comandos
+> enquanto o Exus estiver livre. Use somente em ambiente controlado. Os limites
+> de intensidade/duração, watchdog, emergência e parada na desconexão continuam
+> ativos no firmware.
 
 > Um dispositivo BLE pode não aparecer no menu **Configurações > Bluetooth** do
 > Windows como um fone de ouvido. Isso não é falha: use a busca dentro do Exus
 > Control.
 
 > Se a busca não listar nenhum `Exus-XXXXXX`, reconecte a USB e confirme no
-> Serial Monitor a mensagem `[BLE] Anunciando Exus-...` e envie `ble status`.
+> Serial Monitor a mensagem `[BLE] Exus-... sempre disponivel` e envie `ble status`.
 > O resultado deve conter `advertising=YES`. Se aparecer `[ERRO] BLE nao iniciou
 > anuncio` ou `advertising=NO`, copie a linha completa. Atualize primeiro o
 > firmware e depois recrie/obtenha a versão atual do Exus Control; ambos precisam
@@ -537,7 +520,7 @@ Isso instala o cliente `bleak` que procura e envia comandos BLE. Não basta
 instalar NimBLE-Arduino, pois a biblioteca Arduino fica no ESP32 e o cliente
 Python roda no PC.
 
-Depois, com o pareamento já liberado pela Serial, execute:
+Depois, com o Exus ligado, execute:
 
 ```powershell
 python -m exus_control.cli scan
@@ -557,11 +540,10 @@ crua no pino `3V3`; use a entrada/regulador e a proteção próprios da placa.
 
 A fonte precisa suportar a corrente dos motores, manter GND comum com ESP32/TCA/
 DRV2605 e não causar reinício durante vibração. O primeiro teste com bateria é
-sempre na mesa. Após o primeiro pareamento bem-sucedido, reinicie a placa pela
-bateria e confirme que o Exus Control reconecta sem `ble pair enable`; execute
+sempre na mesa. Reinicie a placa pela bateria e confirme que o Exus Control
+conecta sem qualquer comando Serial; execute
 um pulso mínimo, **PARAR TUDO**, emergência e uma desconexão deliberada. Para
-atualizar firmware, apagar pareamentos (`ble bonds clear`) ou recuperar uma
-falha, reconecte a USB.
+atualizar firmware ou obter logs de diagnóstico, reconecte a USB.
 
 ---
 
@@ -628,7 +610,7 @@ firmware/
 ├── Seguranca.h/.cpp    ← limites zonais/globais e emergência
 ├── Comandos.h/.cpp     ← parser comum para USB Serial e BLE
 ├── BleProtocol.h       ← UUIDs e versão do protocolo BLE
-└── BleTransport.h/.cpp ← GATT, pareamento, watchdog e parada por desconexão
+└── BleTransport.h/.cpp ← GATT aberto, advertising, watchdog e desconexão segura
 ```
 
 O cliente de bancada faz parte de `exus_control/`; execute
@@ -650,3 +632,4 @@ Para entender a lógica completa e os próximos passos de evolução, consulte:
 - [`docs/SPEC-004.md`](docs/SPEC-004.md) — evolução do Exus Control para ponte de jogos.
 - [`docs/SPEC-005.md`](docs/SPEC-005.md) — demo Godot desenvolvida e testada primeiro sem hardware.
 - [`docs/SPEC-006.md`](docs/SPEC-006.md) — Boat Demo leve, perfil de três zonas e build Windows.
+- [`docs/SPEC-007.md`](docs/SPEC-007.md) — disponibilidade, acesso aberto e reconexão Bluetooth LE.

@@ -22,22 +22,18 @@ static volatile uint8_t s_lineLength = 0;
 static volatile bool s_lineOverflow = false;
 static volatile bool s_pendingReady = false;
 static volatile bool s_stopRequested = false;
-static bool s_connected = false;
-static bool s_knownBondAtConnect = false;
-static bool s_newPairingAllowedAtConnect = false;
-static bool s_controlAllowed = false;
-static unsigned long s_pairWindowUntil = 0;
+static volatile bool s_connected = false;
+static volatile bool s_controlAllowed = false;
+static bool s_initialized = false;
 static unsigned long s_fragmentStartedAt = 0;
 static unsigned long s_lastValidCommandAt = 0;
+static unsigned long s_lastAdvertisingAttemptAt = 0;
+static uint32_t s_advertisingRestartCount = 0;
 static int s_lastDisconnectReason = 0;
 static portMUX_TYPE s_bleMux = portMUX_INITIALIZER_UNLOCKED;
 
-static bool within(unsigned long until) { return until && (long)(until - millis()) > 0; }
-static bool pairingEnabled() { return within(s_pairWindowUntil); }
-
 // Chamado tanto pelos callbacks da pilha BLE como pelo loop Arduino. O lock
-// impede que um pulse que chegou antes de uma desconexão/emergência sobreviva
-// para ser executado depois da parada.
+// impede que um pulso anterior a uma desconexao/emergencia seja executado.
 static void discardPendingCommand() {
   portENTER_CRITICAL(&s_bleMux);
   s_lineLength = 0;
@@ -69,8 +65,9 @@ static void indicate(const char* text) {
 
 static void notifyStatus(const char* event) {
   if (!s_connected || !s_status) return;
-  char text[160];
-  snprintf(text, sizeof(text), "event=%s emergency=%s ready=%u active=%u bonds=%d",
+  char text[180];
+  snprintf(text, sizeof(text),
+    "event=%s access=OPEN emergency=%s ready=%u active=%u bonds=%d",
     event, seguranca_emergencia_ativa() ? "YES" : "NO", zone_driver_ready_count(),
     scheduler_active_count(), NimBLEDevice::getNumBonds());
   s_status->setValue(text);
@@ -103,68 +100,39 @@ static void enqueueBytes(const std::string& value) {
 
 class ExusServerCallbacks : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer* server, NimBLEConnInfo& info) override {
-    if (s_connected) { server->disconnect(info.getConnHandle()); return; }
-    s_connected = true;
-    // info.isBonded() ainda pode ser false aqui: o link existente só é
-    // recriptografado depois de onConnect. Consulte o bond persistido em NVS.
-    s_knownBondAtConnect = NimBLEDevice::isBonded(info.getIdAddress());
-    s_newPairingAllowedAtConnect = !s_knownBondAtConnect && pairingEnabled() &&
-      NimBLEDevice::getNumBonds() == 0;
-    s_controlAllowed = false;
-    s_lastValidCommandAt = millis();
-    Serial.printf("[BLE] Link de %s; bond_existente=%s novo_pareamento=%s.\n",
-      info.getIdAddress().toString().c_str(), s_knownBondAtConnect ? "YES" : "NO",
-      s_newPairingAllowedAtConnect ? "YES" : "NO");
-
-    if (!s_knownBondAtConnect && !s_newPairingAllowedAtConnect) {
-      Serial.println(F("[BLE] Link recusado: pareamento local fechado ou bond de outro PC."));
+    if (s_connected) {
       server->disconnect(info.getConnHandle());
       return;
     }
-
-    // Um PC já pareado deve reconectar depois de um reboot/alimentação por
-    // bateria sem depender de `ble pair enable` nem de uma nova chamada pair().
-    if (s_knownBondAtConnect && !NimBLEDevice::startSecurity(info.getConnHandle())) {
-      Serial.println(F("[BLE] Falha ao iniciar recriptografia do bond; desconectando."));
-      server->disconnect(info.getConnHandle());
-    }
+    s_connected = true;
+    s_controlAllowed = true;
+    s_lastValidCommandAt = millis();
+    Serial.printf("[BLE] Link aberto de %s; controle autorizado sem pareamento.\n",
+      info.getIdAddress().toString().c_str());
   }
-  void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int reason) override {
+
+  void onDisconnect(NimBLEServer* server, NimBLEConnInfo&, int reason) override {
+    // Uma conexao secundaria recusada nao pode derrubar a sessao principal.
+    if (server && server->getConnectedCount() > 0) return;
     s_connected = false;
     s_controlAllowed = false;
-    s_knownBondAtConnect = false;
-    s_newPairingAllowedAtConnect = false;
     s_lastDisconnectReason = reason;
     discardPendingCommand();
     s_stopRequested = true;
     Serial.printf("[BLE] Link desconectado (reason=%d); motores e fila BLE parados.\n", reason);
   }
+
   void onAuthenticationComplete(NimBLEConnInfo& info) override {
-    // A permissão de um primeiro pareamento é travada na conexão. Assim, a
-    // janela pode expirar durante a negociação sem derrubar um pareamento já
-    // autorizado, mas não abre espaço para um segundo PC.
-    const bool admitted = info.isEncrypted() && info.isBonded() &&
-      (s_knownBondAtConnect || s_newPairingAllowedAtConnect);
-    if (!admitted) {
-      // Nunca apague automaticamente o bond conhecido após uma falha de RF ou
-      // de autenticação: isso quebrava a reconexão depois de reboot. Um bond
-      // novo não autorizado pode ser removido com segurança.
-      if (!s_knownBondAtConnect && info.isBonded()) NimBLEDevice::deleteBond(info.getIdAddress());
-      Serial.printf("[BLE] Autenticacao recusada (encrypted=%d bonded=%d).\n",
-        info.isEncrypted(), info.isBonded());
-      if (s_server) s_server->disconnect(info.getConnHandle());
-      return;
-    }
-    s_controlAllowed = true;
-    s_pairWindowUntil = 0;
-    Serial.printf("[BLE] Link criptografado autorizado (%s).\n",
-      s_knownBondAtConnect ? "bond existente" : "novo bond");
+    // O protocolo nao depende de autenticacao. Alguns sistemas podem tentar
+    // criptografar por conta de um cache legado; isso nao muda a autorizacao.
+    Serial.printf("[BLE] Autenticacao opcional: encrypted=%d bonded=%d.\n",
+      info.isEncrypted(), info.isBonded());
   }
 };
 
 class CommandCallbacks : public NimBLECharacteristicCallbacks {
-  void onWrite(NimBLECharacteristic* characteristic, NimBLEConnInfo& info) override {
-    if (!s_controlAllowed || !info.isEncrypted() || !info.isBonded()) {
+  void onWrite(NimBLECharacteristic* characteristic, NimBLEConnInfo&) override {
+    if (!s_controlAllowed) {
       indicate("N 0 link_not_authorized");
       return;
     }
@@ -173,8 +141,8 @@ class CommandCallbacks : public NimBLECharacteristicCallbacks {
 };
 
 class EmergencyCallbacks : public NimBLECharacteristicCallbacks {
-  void onWrite(NimBLECharacteristic*, NimBLEConnInfo& info) override {
-    if (info.isEncrypted() && info.isBonded() && s_controlAllowed) {
+  void onWrite(NimBLECharacteristic*, NimBLEConnInfo&) override {
+    if (s_controlAllowed) {
       discardPendingCommand();
       s_stopRequested = true;
     }
@@ -182,8 +150,8 @@ class EmergencyCallbacks : public NimBLECharacteristicCallbacks {
 };
 
 static bool extractSequence(char* line, unsigned long& sequence, char*& command) {
-  // O cliente BLE sempre envia "@<sequência> <comando>\n". Isso evita reenvio
-  // ambíguo e preserva a sintaxe dos comandos USB.
+  // O cliente BLE envia "@<sequencia> <comando>\n". Isso evita reenvio
+  // ambiguo e preserva a sintaxe dos comandos USB.
   if (line[0] != '@') return false;
   char* end = nullptr;
   sequence = strtoul(line + 1, &end, 10);
@@ -194,36 +162,77 @@ static bool extractSequence(char* line, unsigned long& sequence, char*& command)
   return true;
 }
 
+static bool ensureAdvertising(bool force) {
+  if (!s_initialized || !s_advertising || s_connected) return false;
+  if (s_advertising->isAdvertising()) return true;
+  const unsigned long now = millis();
+  if (!force && now - s_lastAdvertisingAttemptAt < BLE_ADVERTISING_RETRY_MS) return false;
+  s_lastAdvertisingAttemptAt = now;
+  const bool started = s_advertising->start(0); // zero = sem limite de tempo
+  if (started) {
+    ++s_advertisingRestartCount;
+    Serial.printf("[BLE] Advertising aberto ativo (reinicios=%lu).\n",
+      (unsigned long)s_advertisingRestartCount);
+  } else {
+    Serial.println(F("[AVISO] BLE nao anunciou; nova tentativa automatica em 1 s."));
+  }
+  return started;
+}
+
 void ble_transport_begin() {
   const uint32_t id = (uint32_t)(ESP.getEfuseMac() & 0xFFFFFFULL);
   snprintf(s_deviceName, sizeof(s_deviceName), "Exus-%06lX", (unsigned long)id);
-  NimBLEDevice::init(s_deviceName);
-  NimBLEDevice::setSecurityAuth(true, false, true); // bond + link cifrado + Secure Connections
+  if (!NimBLEDevice::init(s_deviceName)) {
+    Serial.println(F("[ERRO] Falha ao inicializar NimBLE."));
+    return;
+  }
+
+  // Acesso deliberadamente aberto: nao cria bond, nao exige PIN e nao exige
+  // criptografia GATT. Assim qualquer computador ou telefone BLE pode entrar.
+  NimBLEDevice::setSecurityAuth(false, false, false);
+  NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
   NimBLEDevice::setMTU(185);
+  const int legacyBonds = NimBLEDevice::getNumBonds();
+  if (legacyBonds > 0) {
+    // Preserve chaves existentes durante a migracao. Elas nao autorizam nem
+    // bloqueiam o GATT aberto, mas podem evitar conflito no primeiro acesso de
+    // um Windows que ainda tenha o vinculo antigo em cache.
+    Serial.printf("[BLE] Bonds legados preservados=%d; acesso aberto independe deles.\n",
+      legacyBonds);
+  }
 
   s_server = NimBLEDevice::createServer();
+  if (!s_server) {
+    Serial.println(F("[ERRO] Falha ao criar servidor BLE."));
+    return;
+  }
   s_server->setCallbacks(new ExusServerCallbacks());
-  // NimBLE-Arduino 2.x não reinicia advertising após a desconexão por padrão.
   s_server->advertiseOnDisconnect(true);
+
   NimBLEService* service = s_server->createService(EXUS_BLE_SERVICE_UUID);
   NimBLECharacteristic* command = service->createCharacteristic(EXUS_BLE_COMMAND_UUID,
-    NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR | NIMBLE_PROPERTY::WRITE_ENC);
+    NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
   s_response = service->createCharacteristic(EXUS_BLE_RESPONSE_UUID, NIMBLE_PROPERTY::INDICATE);
   s_status = service->createCharacteristic(EXUS_BLE_STATUS_UUID, NIMBLE_PROPERTY::NOTIFY);
-  NimBLECharacteristic* info = service->createCharacteristic(EXUS_BLE_DEVICE_INFO_UUID, NIMBLE_PROPERTY::READ);
+  NimBLECharacteristic* info = service->createCharacteristic(
+    EXUS_BLE_DEVICE_INFO_UUID, NIMBLE_PROPERTY::READ);
   NimBLECharacteristic* emergency = service->createCharacteristic(EXUS_BLE_EMERGENCY_UUID,
-    NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC);
-  char deviceInfo[180];
-  snprintf(deviceInfo, sizeof(deviceInfo), "protocol=%u firmware=ble-v1 device=%s zones=%u",
-    EXUS_BLE_PROTOCOL_VERSION, s_deviceName, zone_map_count());
+    NIMBLE_PROPERTY::WRITE);
+
+  char deviceInfo[200];
+  snprintf(deviceInfo, sizeof(deviceInfo),
+    "protocol=%u firmware=ble-open-v2 device=%s zones=%u access=open nimble=%s",
+    EXUS_BLE_PROTOCOL_VERSION, s_deviceName, zone_map_count(), NimBLEDevice::getVersion());
   info->setValue(deviceInfo);
   command->setCallbacks(new CommandCallbacks());
   emergency->setCallbacks(new EmergencyCallbacks());
+  if (!service->start()) {
+    Serial.println(F("[ERRO] Falha ao iniciar servico GATT Exus."));
+    return;
+  }
+
   s_advertising = NimBLEDevice::getAdvertising();
-  // O pacote de anúncio BLE tem só 31 bytes. Colocar nome (11 bytes) e UUID de
-  // 128 bits no mesmo pacote pode ocultar um deles de scanners Windows. Nome
-  // fica no anúncio principal, recebido inclusive em scan passivo; UUID fica
-  // na resposta opcional de scan.
+  // O pacote principal leva o nome; a resposta de scan leva o UUID de 128 bits.
   NimBLEAdvertisementData advertisement;
   const bool flagsOk = advertisement.setFlags(BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP);
   const bool nameOk = advertisement.setName(s_deviceName);
@@ -235,39 +244,43 @@ void ble_transport_begin() {
   const bool mainDataOk = s_advertising->setAdvertisementData(advertisement);
   const bool scanDataOk = s_advertising->setScanResponseData(scanResponse);
   s_advertising->enableScanResponse(true);
-  const bool started = flagsOk && nameOk && serviceOk && connectableOk && discoverableOk &&
-    mainDataOk && scanDataOk && s_advertising->start();
-  if (started) {
-    Serial.printf("[BLE] Anunciando %s; use 'ble pair enable' para liberar primeiro pareamento.\n", s_deviceName);
-  } else {
-    Serial.printf("[ERRO] BLE nao iniciou anuncio (flags=%d name=%d service=%d connect=%d discover=%d main=%d scan=%d start=%d).\n",
-      flagsOk, nameOk, serviceOk, connectableOk, discoverableOk, mainDataOk, scanDataOk, started);
+  s_initialized = flagsOk && nameOk && serviceOk && connectableOk && discoverableOk &&
+    mainDataOk && scanDataOk;
+  if (!s_initialized) {
+    Serial.printf("[ERRO] BLE configuracao invalida (flags=%d name=%d service=%d connect=%d discover=%d main=%d scan=%d).\n",
+      flagsOk, nameOk, serviceOk, connectableOk, discoverableOk, mainDataOk, scanDataOk);
+    return;
+  }
+
+  if (ensureAdvertising(true)) {
+    Serial.printf("[BLE] %s sempre disponivel; pareamento nao e necessario.\n", s_deviceName);
   }
 }
 
 bool ble_transport_enable_pairing() {
-  if (s_connected || NimBLEDevice::getNumBonds() != 0) return false;
-  s_pairWindowUntil = millis() + BLE_PAIR_WINDOW_MS;
-  return true;
+  // Mantido para scripts antigos: o modo aberto nao possui janela a habilitar.
+  return s_initialized;
 }
 
 bool ble_transport_clear_bonds() {
-  if (s_connected) return false;
-  s_pairWindowUntil = 0;
+  if (!s_initialized || s_connected) return false;
+  if (NimBLEDevice::getNumBonds() == 0) return true;
   return NimBLEDevice::deleteAllBonds();
 }
 
 bool ble_transport_is_connected() { return s_connected; }
 
 void ble_transport_print_status(Print& output) {
-  output.printf("[BLE] device=%s connected=%s control=%s advertising=%s bonds=%d pairing_window=%s last_disconnect=%d\n",
-    s_deviceName[0] ? s_deviceName : "unavailable", s_connected ? "YES" : "NO",
-    s_controlAllowed ? "YES" : "NO",
-    s_advertising && s_advertising->isAdvertising() ? "YES" : "NO",
-    NimBLEDevice::getNumBonds(), pairingEnabled() ? "OPEN" : "CLOSED", s_lastDisconnectReason);
+  const int bonds = s_initialized ? NimBLEDevice::getNumBonds() : 0;
+  output.printf("[BLE] device=%s initialized=%s connected=%s control=%s advertising=%s access=OPEN bonds=%d ad_restarts=%lu last_disconnect=%d\n",
+    s_deviceName[0] ? s_deviceName : "unavailable", s_initialized ? "YES" : "NO",
+    s_connected ? "YES" : "NO", s_controlAllowed ? "YES" : "NO",
+    s_advertising && s_advertising->isAdvertising() ? "YES" : "NO", bonds,
+    (unsigned long)s_advertisingRestartCount, s_lastDisconnectReason);
 }
 
 void ble_transport_process() {
+  if (!s_connected) ensureAdvertising(false);
   if (s_stopRequested) {
     s_stopRequested = false;
     discardPendingCommand();
@@ -275,29 +288,45 @@ void ble_transport_process() {
     notifyStatus("stopped_link_or_emergency");
     return;
   }
-  if (s_connected && scheduler_active_count() && millis() - s_lastValidCommandAt > BLE_COMMAND_WATCHDOG_MS) {
+  if (s_connected && scheduler_active_count() &&
+      millis() - s_lastValidCommandAt > BLE_COMMAND_WATCHDOG_MS) {
     scheduler_stop_all();
     notifyStatus("stopped_watchdog");
   }
-  if (s_lineLength && s_fragmentStartedAt && millis() - s_fragmentStartedAt > BLE_FRAGMENT_TIMEOUT_MS) {
-    portENTER_CRITICAL(&s_bleMux); s_lineLength = 0; s_lineOverflow = false; s_fragmentStartedAt = 0; portEXIT_CRITICAL(&s_bleMux);
+  if (s_lineLength && s_fragmentStartedAt &&
+      millis() - s_fragmentStartedAt > BLE_FRAGMENT_TIMEOUT_MS) {
+    portENTER_CRITICAL(&s_bleMux);
+    s_lineLength = 0;
+    s_lineOverflow = false;
+    s_fragmentStartedAt = 0;
+    portEXIT_CRITICAL(&s_bleMux);
     indicate("N 0 fragment_timeout");
   }
   if (!s_pendingReady) return;
   char line[BLE_COMMAND_BUFFER_SIZE];
-  portENTER_CRITICAL(&s_bleMux); memcpy(line, s_pending, sizeof(line)); s_pendingReady = false; portEXIT_CRITICAL(&s_bleMux);
+  portENTER_CRITICAL(&s_bleMux);
+  memcpy(line, s_pending, sizeof(line));
+  s_pendingReady = false;
+  portEXIT_CRITICAL(&s_bleMux);
   if (s_stopRequested || !s_connected || !s_controlAllowed) {
     discardPendingCommand();
     return;
   }
-  unsigned long sequence = 0; char* command = nullptr;
-  if (!extractSequence(line, sequence, command)) { indicate("N 0 invalid_frame"); return; }
+  unsigned long sequence = 0;
+  char* command = nullptr;
+  if (!extractSequence(line, sequence, command)) {
+    indicate("N 0 invalid_frame");
+    return;
+  }
   ResponsePrint response;
   const bool ok = comandos_executar(command, response);
   char framed[BLE_RESPONSE_BUFFER_SIZE + 24];
   snprintf(framed, sizeof(framed), "%c %lu %s", ok ? 'A' : 'N', sequence, response.c_str());
   indicate(framed);
-  if (ok) { s_lastValidCommandAt = millis(); notifyStatus("command_ok"); }
+  if (ok) {
+    s_lastValidCommandAt = millis();
+    notifyStatus("command_ok");
+  }
 }
 
 #else

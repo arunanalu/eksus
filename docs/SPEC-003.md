@@ -24,7 +24,7 @@ Portanto, a sequência correta é:
 1. Manter o protótipo ligado ao PC por **cabo USB de dados**.
 2. Gravar o firmware com BLE pelo USB e usar a Serial para confirmar que o boot,
    as zonas e a parada de emergência continuam corretos.
-3. Com o USB ainda conectado, parear/conectar o PC por BLE e testar comandos
+3. Com o USB ainda conectado, conectar o PC por BLE e testar comandos
    seguros. Nesse momento o USB fornece energia e permanece como diagnóstico.
 4. Só após o teste BLE passar, desconectar o USB e alimentar o protótipo por uma
    **bateria/fonte já validada**. O BLE então continua sendo o único canal de
@@ -62,18 +62,16 @@ um aplicativo Bluetooth nem usar programas genéricos de celular.
    botão **BOOT** descrito no README. Esta primeira gravação **sempre é por USB**.
 3. Abrir o Serial Monitor em 115200 baud. Confirmar `zones`, `Q` e `emergency`.
    Nenhum motor deve estar ativo antes de continuar.
-4. Habilitar a janela de pareamento na Serial com `ble pair enable`. Ela dura no
-   máximo 60 s e só deve ser aberta com o protótipo na mesa, fora do corpo.
-5. Em outro terminal do PC, executar `python -m exus_control.cli scan`. O nome
+4. Em outro terminal do PC, executar `python -m exus_control.cli scan`. O nome
    esperado é `Exus-<id-curto>`.
-6. Executar `python -m exus_control.cli connect --id <id-curto> info`. O cliente
-   inicia o pareamento; aceitar a confirmação do Windows caso ela apareça. Não
+5. Executar `python -m exus_control.cli connect --id <id-curto> info`. O cliente
+   conecta diretamente, sem diálogo de pareamento. Não
    depender do menu **Configurações > Bluetooth** do Windows: dispositivos BLE
    GATT podem não aparecer ali como fone de ouvido, embora estejam funcionando.
-7. Com o cabo USB ainda conectado, executar `status`, `Q`, um pulso mínimo e
+6. Com o cabo USB ainda conectado, executar `status`, `Q`, um pulso mínimo e
    `emergency` pelo cliente BLE. Conferir na Serial que o mesmo comando foi
    recebido e que a parada interrompe todas as zonas.
-8. Desconectar o cliente ou desligar o Bluetooth do PC. Todos os motores devem
+7. Desconectar o cliente ou desligar o Bluetooth do PC. Todos os motores devem
    parar. Reconectar e repetir uma vez antes de considerar o BLE pronto.
 
 Exemplos que o cliente de bancada deve oferecer após a implementação:
@@ -101,7 +99,7 @@ ficar alimentado pela bateria, mas somente se todos estes itens forem verdadeiro
 - o grupo já testou a parada por desconexão e a emergência com alimentação USB;
 - a primeira utilização sem USB ocorre na mesa, não no corpo.
 
-Para voltar a editar o firmware, apagar pareamentos ou recuperar uma atualização
+Para voltar a editar o firmware, obter logs ou recuperar uma atualização
 interrompida, reconectar o USB. Ele continua sendo o caminho de recuperação.
 
 ---
@@ -116,7 +114,7 @@ interrompida, reconectar o USB. Ele continua sendo o caminho de recuperação.
 | Firmware | Arduino + NimBLE-Arduino, sem migração para ESP-IDF nesta fase. |
 | Energia de bancada | USB. BLE não alimenta o protótipo. |
 | Energia portátil | bateria/fonte externa já validada; seu projeto elétrico não entra nesta SPEC. |
-| Recuperação | USB Serial obrigatório para logs, apagar bond e recuperar falha de OTA. |
+| Recuperação | USB Serial obrigatório para logs e para recuperar falha de OTA. |
 | OTA | segundo marco, depois de BLE de controle estável. |
 
 O firmware é a autoridade final: nenhum pacote BLE pode ultrapassar intensidade,
@@ -128,7 +126,7 @@ duração, *cooldown*, orçamento global ou bloqueio de emergência da SPEC-002.
 
 ```text
 PC: Exus Control (bancada BLE + ponte local da SPEC-004)
-                    │ BLE GATT criptografado
+                    │ BLE GATT aberto
 ESP32-C3: BleTransport → CommandRouter → Segurança → Scheduler → ZoneDriver
                                                         │
                                                TCA9548A → DRV2605L → motores
@@ -182,28 +180,27 @@ aplica *timeout* e **não reenvia automaticamente** `pulse`/`effect`, pois repet
 um deles pode gerar vibração duplicada. Mensagem acima do limite, sem `\n` no
 prazo definido ou fora da gramática é descartada e gera NACK quando possível.
 
-### 5.1 Conexão, desconexão e pareamento
+### 5.1 Conexão, desconexão e acesso aberto
 
-- Anunciar somente quando não houver conexão ativa.
+- Anunciar indefinidamente quando não houver conexão ativa. O BLE inicia antes
+  da descoberta/calibração dos atuadores e não depende de USB ou comando Serial.
+- O modo de acesso é GATT aberto: não há PIN, janela, criptografia ou bond
+  obrigatório. Qualquer central BLE pode conectar quando o Exus estiver livre.
 - Ao conectar, iniciar com todas as zonas paradas; o PC consulta `Q` antes de
-  qualquer comando háptico. Quando o PC já possuir bond persistente, o
-  periférico deve iniciar a recriptografia logo após `onConnect`; não usar o
-  estado ainda não autenticado desse callback para revogar o bond.
+  qualquer comando háptico.
 - Ao desconectar, parar o scheduler, descartar fragmentos e comandos BLE já
   enfileirados e voltar a anunciar. Uma emergência também descarta a fila,
   para que um `pulse` recebido antes dela nunca volte a ligar um motor.
+- Supervisionar o advertising no loop; se estiver desconectado e sem anúncio,
+  tentar reiniciá-lo a cada 1 s, sem limite total de tempo.
 - Se o link ficar sem comando/heartbeat válido por 2 s durante saída contínua,
   parar tudo. Implementar esse *watchdog* antes de liberar comando contínuo BLE.
 - Aceitar um único central no MVP.
-- O primeiro pareamento requer presença local: `ble pair enable` pela Serial
-  abre uma janela máxima de 60 s. Fora dela, novas tentativas são recusadas.
-- Usar criptografia e *bonding* persistente em NVS; no MVP, manter apenas um PC
-  autorizado. A decisão de aceitar o primeiro pareamento é congelada ao abrir
-  o link, para a expiração da janela durante a negociação não gerar falha
-  espúria. `ble bonds clear` existe exclusivamente na Serial e, ao trocar PC,
-  requer também remover o dispositivo salvo no Windows.
-- Exigir link criptografado para `command`, `emergency` e OTA. A emergência
-  local/Serial continua possível mesmo sem BLE.
+- Preservar bonds legados durante a migração, mas não usá-los para autorizar ou
+  bloquear GATT. O cliente não chama `pair()`; reconectar não depende do cache.
+- `command` e `emergency` ficam graváveis sem criptografia. Essa abertura é uma
+  decisão explícita de produto e exige uso em ambiente controlado; os limites
+  hápticos locais continuam sendo a autoridade final.
 
 ---
 
@@ -222,7 +219,9 @@ nunca gravar uma atualização sobre o firmware que está em execução.
 
 ### 6.2 Serviço OTA
 
-Criar um serviço GATT separado, acessível apenas em link criptografado:
+Criar um serviço GATT separado com autenticação forte na aplicação. A abertura
+do serviço de controle não autoriza OTA; não usar bond do sistema operacional
+como única proteção:
 
 | Característica | Conteúdo |
 |---|---|
@@ -276,12 +275,12 @@ roteador.
 ### Fase 2 — BLE de diagnóstico e segurança
 
 - Adicionar NimBLE-Arduino, `BleProtocol`, anúncio e `device-info`/`status`.
-- Implementar janela de pareamento Serial, criptografia, bond único e limpeza de
-  bond apenas pela Serial.
+- Implementar acesso aberto sem bond, advertising indefinido e autorrecuperação.
 - Criar `exus_control/requirements.txt`, `python -m exus_control.cli scan` e `info`.
 - Documentar no README os pré-requisitos do PC e o passo a passo da seção 2.
 
-**Gate:** apenas PC pareado lê informações; apagar o bond pelo USB revoga acesso.
+**Gate:** qualquer PC/telefone BLE conecta sem pareamento e o advertising volta
+após toda desconexão.
 
 ### Fase 3 — comandos BLE
 
@@ -319,12 +318,12 @@ caminho USB.
 
 ### Oportunidades após a validação da reconexão
 
-- **Botão físico de pareamento:** elimina a dependência da Serial para
-  autorizar uma troca controlada de PC, sem deixar o dispositivo aberto.
+- **Autorização futura:** se o produto deixar o ambiente controlado, adicionar
+  chave de aplicação ou presença física sem reintroduzir dependência de bond.
 - **Telemetria de energia:** registrar motivo de reset/brownout e causa de
-  desconexão BLE para distinguir falha de bond de queda da bateria durante a
+  desconexão BLE para distinguir falha de rádio de queda da bateria durante a
   negociação do link.
-- **Teste de regressão em hardware:** automatizar o ciclo parear → desligar
+- **Teste de regressão em hardware:** automatizar o ciclo conectar → desligar
   USB → iniciar pela bateria → reconectar → desconectar, incluindo a garantia
   de que não há comando pendente após emergência.
 - **OTA seguro:** iniciar esta fase somente depois desse ciclo estar estável;
@@ -334,16 +333,17 @@ caminho USB.
 
 ## 8. Critérios de aceite
 
-- [ ] ESP32-C3 anuncia BLE e aceita um único PC pareado e criptografado.
+- [ ] ESP32-C3 anuncia BLE indefinidamente e aceita qualquer PC/telefone BLE,
+  um central por vez, sem pareamento obrigatório.
 - [ ] `Q` e `status` reportam zonas ERM 0/1 e LRA 2 por BLE.
 - [ ] BLE e Serial usam o mesmo roteador e obedecem os mesmos limites locais.
 - [ ] Desconexão, *timeout* ou pacote inválido param todos os atuadores.
 - [ ] Emergência funciona por BLE e por USB; USB permanece independente do BLE.
-- [ ] Após um primeiro pareamento, reiniciar pela bateria permite reconectar o
-  mesmo PC sem reabrir a janela de pareamento.
+- [ ] Reiniciar pela bateria permite conectar e reconectar sem comando Serial,
+  PIN, janela de tempo ou ação “esquecer dispositivo”.
 - [ ] Desconexão ou emergência não executa comando BLE que já estava na fila.
-- [ ] O roteiro de primeira conexão funciona com USB conectado, sem depender do
-  painel Bluetooth do Windows.
+- [ ] O roteiro funciona por fonte externa e não depende do painel Bluetooth do
+  Windows; telefones usam um cliente GATT compatível.
 - [ ] O README principal contém o passo a passo leigo da primeira conexão e da
   troca segura para bateria.
 - [ ] OTA só escreve a partição inativa, valida SHA-256 e mantém recuperação USB.

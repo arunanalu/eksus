@@ -20,7 +20,7 @@ async def main_async(args) -> int:
         return 0
     client = ExusBleClient(await find(args.identifier))
     try:
-        await client.connect(pair=args.action != "info")
+        await client.connect()
         if args.action == "info": print(await client.info())
         elif args.command.strip().lower() == "emergency":
             await client.emergency(); print("Parada de emergência enviada. Confirme no protótipo que todos os motores pararam.")
